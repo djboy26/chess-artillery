@@ -557,7 +557,7 @@ function legalMoves(st, color) {
   const out=[];
   for(const id in st.pieces){
     if (st.pieces[id].color!==color) continue;
-    for(const mv of pieceMoves(st,id)) if(!inCheck(projectMove(st,mv),color)) out.push(mv);
+    for(const mv of pieceMoves(st,id)) if(!inCheck(projectMove(st,mv),color) || st.pieces[id].type==='n') out.push(mv);
   }
   return out;
 }
