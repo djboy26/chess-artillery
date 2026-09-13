@@ -1,0 +1,18 @@
+# The same gate that runs on your PC, run by GitHub on every proposed change.
+# A red gate here blocks merging (branch protection requires this check).
+name: gate
+on:
+  pull_request:
+  push:
+    branches: [main, 'claude/**']
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Chess-rules fuzz + balance drift guard
+        run: node gate.cjs --force

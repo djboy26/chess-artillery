@@ -1,0 +1,29 @@
+{
+  "approvedAt": "2026-09-13T18:07:13.481Z",
+  "tolerance": {
+    "points": 8,
+    "pliesPct": 20
+  },
+  "games": 120,
+  "seed": 20260913,
+  "whiteWinPct": 28.3,
+  "blackWinPct": 20,
+  "drawPct": 51.7,
+  "avgPlies": 98.7,
+  "shotShare": {
+    "p": 11.9,
+    "n": 49.3,
+    "b": 16.7,
+    "r": 4,
+    "q": 9.3,
+    "k": 8.7
+  },
+  "survival": {
+    "p": 3.8,
+    "n": 26.9,
+    "b": 4.2,
+    "r": 5,
+    "q": 24.6,
+    "k": 75.8
+  }
+}

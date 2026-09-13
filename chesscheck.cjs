@@ -1,5 +1,11 @@
 /* Chess-correctness fuzz: the rules must be exactly chess, always. */
 const fs=require('fs'), path=require('path');
+// usage: node chesscheck.cjs [--games N] [--seed S]   · exit code 1 on any violation
+const ARGS=process.argv.slice(2);
+const argOf=(k,d)=>{const i=ARGS.indexOf(k); return i>=0&&ARGS[i+1]!==undefined?ARGS[i+1]:d;};
+const GAMES=Number(argOf('--games',120))||120;
+if (argOf('--seed',null)!==null) { let s=(Number(argOf('--seed'))>>>0)||1;
+  Math.random=()=>{ s=(s+0x6D2B79F5)|0; let t=Math.imul(s^(s>>>15),1|s); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
 const HTML=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const START=HTML.indexOf('export const CONFIG'), END=HTML.indexOf('  9. PIECE GEOMETRY');
 let src=HTML.slice(START,HTML.lastIndexOf('/*',END)).replace('export const CONFIG','const CONFIG');
@@ -16,7 +22,7 @@ let games=0, positions=0, movesChecked=0;
 const bugs=[];
 const record=(k,d)=>{ if(bugs.length<12) bugs.push(k+': '+JSON.stringify(d)); };
 
-for (let gi=0; gi<120; gi++) {
+for (let gi=0; gi<GAMES; gi++) {
   const g=boot(); games++;
   for (let i=0;i<200 && !g.gameOver;i++) {
     positions++;
@@ -63,3 +69,4 @@ for (let gi=0; gi<120; gi++) {
 }
 console.log(`\ngames ${games} · positions ${positions} · legal moves verified ${movesChecked}`);
 console.log(bugs.length ? 'BUGS:\n  '+bugs.join('\n  ') : 'NO CHESS-RULE VIOLATIONS FOUND');
+if (bugs.length) process.exitCode=1;

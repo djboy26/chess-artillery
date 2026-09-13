@@ -225,6 +225,12 @@ function run(n) {
   return a;
 }
 
+const START_COUNT = { p:16, n:4, b:4, r:4, q:2, k:2 };
+// Exported so balance-guard.cjs can reuse the same bot and the same rules slice.
+module.exports = { run, playGame, CONFIG, TYPES, START_COUNT, CA };
+
+// ── command line: print the readable report ──────────────────────────────────
+if (require.main === module) {
 // ── optional CONFIG overrides so tuning can be swept without editing the game ──
 // e.g.  node balance.cjs 30 "WEAPONS.p.sectorHalfDeg=42,WEAPONS.p.maxRange=4"
 if (process.argv[3]) {
@@ -242,7 +248,6 @@ const N = Number(process.argv[2]) || 40;
 const t0 = Date.now();
 const a = run(N);
 const G = a.games;
-const START_COUNT = { p:16, n:4, b:4, r:4, q:2, k:2 };
 
 console.log(`\nCHESS ARTILLERY — ${G} bot games, ${Date.now()-t0}ms\n`);
 console.log(`avg length      ${(a.plies/G).toFixed(1)} plies`);
@@ -274,3 +279,4 @@ for (const t of TYPES) {
   console.log(` ${t}      ${rd.toFixed(1).padStart(7)}  ${wt.toFixed(1).padStart(17)}  ${pct.toFixed(0).padStart(18)}%`);
 }
 console.log('');
+}
