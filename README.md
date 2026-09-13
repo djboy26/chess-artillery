@@ -211,7 +211,8 @@ all directions, cd 2.
 ## Balance, measured by self-play
 
 `balance.cjs` extracts the rules layer out of `index.html` and plays bot-vs-bot
-games headlessly in Node — ~75ms a game, so any retune can be re-measured
+games headlessly in Node — about 0.3s a game as the game stands today (120 games
+in 37s on the factory's cloud machine), so any retune can be re-measured
 immediately:
 
 ```bash
@@ -226,7 +227,11 @@ swept without editing the game:
 node balance.cjs 30 "WEAPONS.p.maxRange=5,HP.k=200"
 ```
 
-### What self-play found, and what changed
+### What self-play found, and what changed — the history
+
+*Each number below is what was measured **at the time that fix was made**. This
+table is the story of how the game got here, not a description of how it plays
+today. For today's game, read **Where it landed** underneath it.*
 
 | # | Measured problem | Fix |
 | --- | --- | --- |
@@ -240,47 +245,79 @@ node balance.cjs 30 "WEAPONS.p.maxRange=5,HP.k=200"
 | 8 | Rook was the weakest gun: 6% of shots at 28 dmg | Blocked penalty 0.5→0.75, cd 3→2 |
 | 9 | Bishop: top damage in the game, **0%** survival | Pierce falloff 0.6 per body |
 
-**The counterintuitive one is #7.** Doubling HP made games *shorter* (101 → 55
-plies) and far more decisive (draws 50% → 7.5%), because material now survives to
-form a real endgame instead of grinding down to bare kings that can only shuffle
-and repeat.
+**The counterintuitive one is #7.** Doubling HP made games *shorter at the time*
+(101 → 55 plies) and far more decisive (draws 50% → 7.5%), because material now
+survived to form a real endgame instead of grinding down to bare kings that can
+only shuffle and repeat. Everything changed since has pushed both numbers back
+the other way: today's games are long again (~99 plies) and draws are back above
+half. That is the headline finding of the current measurement below.
 
-### Where it landed
+### Where it landed — today's numbers
 
-| Piece | Share of shots | Dmg/shot | Survival | Role |
-| --- | --- | --- | --- | --- |
-| ♘ Knight | 40% | 17.7 | 59% | The workhorse — cheap, always has a shot |
-| ♗ Bishop | 32% | 43.9 | 3% | Glass cannon, top damage, dies for it |
-| ♖ Rook | 10% | 28.0 | 14% | Punishes open lines |
-| ♕ Queen | 9% | 57.7 | 25% | Rare, decisive |
-| ♙ Pawn | 8% | 13.1 | 11% | Chip damage when better guns reload |
+*Measured on 2026-09-13 over the 120 seeded games that the drift guard checks:
+`node balance-guard.cjs` for the shares and survival, `node balance.cjs 120` over
+the same games for the damage columns. Both are read-only, and the seeded set
+reproduces exactly, so anyone can re-run these and get the same table. (Plain
+`node balance.cjs 120` picks its own random games, so it wanders a point or two
+either side of these.)*
 
-Games average ~55 plies, 7.5% draws, both win conditions live.
+| Piece | Share of shots | Shots/game | Dmg/shot | Survival | Role |
+| --- | --- | --- | --- | --- | --- |
+| ♘ Knight | 49% | 16.6 | 18.7 | 27% | The workhorse — fires half of every game's shots |
+| ♗ Bishop | 17% | 5.7 | 41.7 | 4% | Glass cannon: second-hardest hitter, almost never survives |
+| ♙ Pawn | 12% | 4.0 | 12.8 | 4% | Chip damage while the better guns reload |
+| ♕ Queen | 9% | 3.2 | 59.2 | 25% | Rare, and the hardest single shot in the game |
+| ♔ King | 9% | 2.9 | 18.1 | 76% | Arms only in the endgame, and usually lives to the end |
+| ♖ Rook | 4% | 1.4 | 42.5 | 5% | Hits hard, almost never has a clear line to hit down |
+
+Headline: games average **99 plies**, and end **52% draws, white 28%, black 20%**.
+A shot is taken on 39% of the turns where one is available. Both win conditions
+are technically live, but only one of them actually happens: all 58 decisive games
+ended with a king drained to 0 HP, and none in checkmate.
 
 ### Still open
 
-- **The knight holds 40% of shots.** It deals the *least* per shot, so it reads as
-  the machine gun rather than the best gun — but it is the most-used piece by a
-  wide margin because it is the only weapon never blocked.
-- **Bishop survival is 3%.** It is the top damage dealer and gets focused down for
-  it. Arguably correct, still extreme.
-- **White wins 62%.** Higher than chess's ~55%; partly first-move advantage
-  (white also shoots first), partly a symmetric greedy bot.
-- **Checkmate is still rare in bot games (~1 in 40).** My bot is 1-ply greedy and
-  cannot see mate, so this number says more about the bot than the design. Real
-  players should find far more.
-- **The rook battery has never once fired in self-play.** Two rooks doubled with a
-  clear line between them simply does not arise. It may be dead content.
+*Same measurement as the table above.*
+
+- **Half of all games are draws (52%)**, and repetition is doing most of it: of
+  120 games, 42 ended by threefold repetition, 14 by the fifty-move rule and 5 by
+  stalemate. Games run ~99 plies, nearly twice the 55 that the HP change once
+  bought. Whatever the draw rate should be, it is no longer the 7.5% this README
+  used to advertise.
+- **The knight holds 49% of shots** — half the shooting in the game, up from the
+  40% recorded after the last knight nerf. It still deals the *least* damage per
+  shot (18.7), so it reads as the machine gun rather than the best gun; what it
+  has is availability. When it is off cooldown it has a live target 80% of the
+  time, against the rook's 5%.
+- **Bishop survival is 4%.** It is the second-biggest gun after the queen and gets
+  focused down for it. Arguably correct, still extreme.
+- **The rook has nearly stopped firing.** 1.4 shots a game, a live target on only
+  5% of the turns it is loaded — though it does land ~42 when a line finally
+  opens. It is the rarest weapon on the board.
+- **White wins 28%, black 20%.** The first-move advantage still shows (white also
+  shoots first), but it is no longer the story: the most likely result is a draw,
+  not a white win. The old "white wins 62%" is gone.
+- **Checkmate has all but vanished from bot games:** none at all in the seeded
+  120, one in a separate unseeded 120. The bot is 1-ply greedy and cannot see
+  mate, and kings now run out of HP long before they are mated, so this says more
+  about the bot than the design. Real players should find more.
+- **The rook battery has still never fired** in self-play (0.00 a game), and
+  neither has en passant (0.00 a game). Two rooks doubled with a clear line
+  between them simply does not arise. It may be dead content.
 
 ### Balance numbers worth knowing
 
+*The four figures below come from the game's settings, not from self-play, so
+they are exact. What each weapon actually averages once cover and cooldowns get
+in the way is the Dmg/shot column above.*
+
 - **Rook battery on an open file: 140** — still the biggest number, but against
-  180 HP queens and 120 HP rooks it is now a heavy blow rather than a one-shot.
-  It costs both rooks their cooldown.
+  180 HP queens and 120 HP rooks it is a heavy blow rather than a one-shot. It
+  costs both rooks their cooldown. In 120 measured games it has never happened.
 - Open-file rook alone: 70 against 120 HP pieces.
 - Fianchettoed bishop with the pair: **50** on its colour (capped at ×2), 0 off it.
-- HP is now `pawn 40 · knight 70 · bishop 80 · rook 120 · queen 180 · king 150`,
-  which is what gives the two-to-three-shot kills the design was aiming for.
+- HP is `pawn 40 · knight 70 · bishop 80 · rook 120 · queen 180 · king 150`, which
+  is what gives the two-to-three-shot kills the design was aiming for.
 
 ---
 
