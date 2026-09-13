@@ -1,0 +1,7 @@
+# local state written by the gate and hooks
+.claude/gate-pass
+.claude/stop-count
+# per-machine settings and worktrees
+.claude/settings.local.json
+.claude/worktrees/
+node_modules/

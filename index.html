@@ -1,0 +1,3126 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CHESS ARTILLERY</title>
+
+<style>
+  /* Warm, light, minimal. No blues, no blacks. */
+  :root {
+    --bg:      #efe9dd;
+    --board:   #e7dfd0;
+    --panel:   #faf7f1;
+    --ink:     #2b2620;
+    --dim:     #7d7365;
+    --faint:   #a89c8b;
+    --hair:    #e0d7c7;
+    --accent:  #c2662f;   /* terracotta */
+    --gold:    #c79418;
+    --red:     #b3402e;
+    --green:   #5e8a4e;
+  }
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; background:var(--bg); color:var(--ink); overflow:hidden;
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    font-size:13px; -webkit-font-smoothing:antialiased; }
+  #root { height:100%; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+  .app { display:flex; height:100%; }
+  .stage { flex:1; position:relative; min-width:0; background:var(--bg); }
+  .stage canvas { display:block; }
+
+  /* ── left rail ───────────────────────────────────────────────────── */
+  .rail { width:260px; min-width:260px; height:100%; background:var(--panel);
+    border-right:1px solid var(--hair); display:flex; flex-direction:column; }
+  .rail section { padding:16px 18px; }
+  .rail section + section { border-top:1px solid var(--hair); }
+  .lbl { font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint);
+    font-weight:600; margin-bottom:10px; }
+
+  .wordmark { font-size:12px; letter-spacing:.34em; font-weight:600; color:var(--ink); }
+  .wordmark b { color:var(--accent); font-weight:600; }
+
+  .side { display:flex; align-items:center; gap:11px; }
+  .dot { width:11px; height:11px; border-radius:50%; flex:none; }
+  .dot.w { background:#fffdf8; box-shadow:0 0 0 1px #0003; }
+  .dot.b { background:#6b5442; box-shadow:0 0 0 1px #0002; }
+  .side .nm { font-size:16px; font-weight:600; letter-spacing:.02em; }
+
+  .steps { margin-top:14px; display:flex; flex-direction:column; gap:2px; }
+  .step { display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:6px;
+    font-size:12px; color:var(--faint); }
+  .step.now { background:#c2662f18; color:var(--ink); }
+  .step.ok  { color:var(--green); }
+  .step .n { width:16px; height:16px; border-radius:50%; border:1px solid currentColor;
+    font-size:9px; display:flex; align-items:center; justify-content:center; flex:none; }
+  .step.ok .n { background:var(--green); border-color:var(--green); color:#fff; }
+  .step .hint { margin-left:auto; font-size:10px; color:var(--faint); }
+
+  .alert { margin-top:12px; padding:7px 10px; border-radius:6px; font-size:11.5px;
+    background:#b3402e14; color:#8e3324; }
+
+  .roster { flex:1; min-height:0; display:flex; flex-direction:column; padding-bottom:6px; }
+  .roster .list { overflow-y:auto; flex:1; min-height:0; margin:0 -6px; padding:0 6px; }
+  .unit { display:grid; grid-template-columns:16px 1fr auto; gap:9px; align-items:center;
+    padding:5px 7px; border-radius:6px; cursor:pointer; }
+  .unit:hover { background:#00000008; }
+  .unit.on { background:#c2662f1a; }
+  .unit .g { font-size:14px; line-height:1; }
+  .unit .nm { font-size:11.5px; color:var(--dim); }
+  .unit .nm em { font-style:normal; color:var(--faint); }
+  .bar { height:3px; border-radius:2px; background:#00000012; overflow:hidden; margin-top:3px; }
+  .bar i { display:block; height:100%; border-radius:2px; }
+  .tag { font-size:9px; letter-spacing:.1em; font-weight:600; text-transform:uppercase; }
+  .tag.rdy { color:var(--accent); } .tag.cd { color:var(--gold); } .tag.off { color:var(--faint); }
+
+  .moves { height:104px; display:flex; flex-direction:column; }
+  .moves .list { overflow-y:auto; flex:1; min-height:0; }
+  .moves table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  .moves td { padding:1px 6px 1px 0; color:var(--dim); }
+  .moves td.n { color:var(--faint); width:24px; text-align:right; }
+
+  .feed { height:150px; display:flex; flex-direction:column; }
+  .feed .list { overflow-y:auto; flex:1; min-height:0; font-size:11px; line-height:1.55; }
+  .feed .list div { padding:2px 0; color:var(--dim); }
+  .k-dmg{color:#a8552c}.k-kill{color:var(--red)}.k-shot{color:var(--accent)}
+  .k-crip{color:#96700e}.k-heal{color:var(--green)}.k-sys{color:var(--faint)}.k-move{color:var(--dim)}
+
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-thumb{background:#d6cbb8;border-radius:3px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ── buttons ─────────────────────────────────────────────────────── */
+  button { font:inherit; font-size:12px; border:1px solid var(--hair); background:#00000006;
+    color:var(--ink); padding:8px 14px; border-radius:7px; cursor:pointer; letter-spacing:.03em;
+    transition:background .12s, border-color .12s, opacity .12s; }
+  button:hover:not(:disabled){ background:#0000000f; border-color:#cdc0ab; }
+  button:disabled{ opacity:.35; cursor:default; }
+  button.go { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.go:hover:not(:disabled){ background:#d3773c; }
+  button.fire { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
+  button.fire:hover:not(:disabled){ background:#c74e39; }
+  button.ghost { background:transparent; }
+  button.icon { padding:7px 10px; border-radius:8px; background:#faf7f1e6; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  kbd { font-family:inherit; font-size:10px; padding:1px 5px; border-radius:4px;
+    background:#0000000d; color:var(--dim); border:1px solid var(--hair); }
+
+  /* ── stage overlays ──────────────────────────────────────────────── */
+  .hud { position:absolute; inset:0; pointer-events:none; }
+  .hud > * { pointer-events:auto; }
+
+  .tl { position:absolute; top:16px; left:18px; pointer-events:none; }
+  .tr { position:absolute; top:16px; right:18px; display:flex; gap:8px; }
+  .prompt { font-size:12.5px; color:var(--dim); letter-spacing:.02em; }
+  .prompt b { color:var(--ink); font-weight:600; }
+
+  .dock { position:absolute; left:50%; transform:translateX(-50%); bottom:22px;
+    background:#faf7f1f2; border:1px solid var(--hair); border-radius:12px;
+    padding:12px 16px; display:flex; gap:18px; align-items:center;
+    backdrop-filter:blur(10px); box-shadow:0 10px 30px #0000001f; }
+  .dock .cell { display:flex; flex-direction:column; gap:5px; }
+  .dock .cap { font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); }
+  .dock .val { font-size:13px; font-weight:600; }
+  .dock .sep { width:1px; align-self:stretch; background:var(--hair); }
+  .clk { font-size:26px; font-weight:600; font-variant-numeric:tabular-nums; min-width:58px;
+    text-align:right; letter-spacing:-.01em; }
+  .clk.hot { color:var(--red); }
+
+  .arcsel { display:flex; gap:0; border:1px solid var(--hair); border-radius:7px; overflow:hidden; }
+  .arcsel button { border:none; border-radius:0; padding:6px 12px; font-size:11px; background:transparent; }
+  .arcsel button.sel { background:var(--accent); color:#fff; font-weight:600; }
+  .arcsel button:disabled { opacity:.3; }
+
+  /* ── modals ──────────────────────────────────────────────────────── */
+  .veil { position:fixed; inset:0; background:#efe9ddd8; display:flex; align-items:center;
+    justify-content:center; z-index:100; backdrop-filter:blur(4px); }
+  .card { background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:26px 28px;
+    width:min(660px, 92vw); max-height:88vh; overflow:auto; box-shadow:0 24px 60px #00000026; }
+  .card h2 { margin:0 0 4px; font-size:15px; letter-spacing:.2em; font-weight:600; }
+  .card .sub { color:var(--dim); font-size:12px; margin:0 0 20px; }
+
+  .rules { display:grid; grid-template-columns:1fr 1fr; gap:22px 30px; }
+  .rules h4 { margin:0 0 8px; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--accent); font-weight:600; }
+  .rules ul { margin:0; padding:0; list-style:none; }
+  .rules li { font-size:12px; line-height:1.65; color:var(--dim); padding-left:13px; position:relative; }
+  .rules li::before { content:''; position:absolute; left:0; top:9px; width:4px; height:4px;
+    border-radius:50%; background:var(--faint); }
+  .rules li b { color:var(--ink); font-weight:600; }
+  table.wt { width:100%; border-collapse:collapse; font-size:11.5px; }
+  table.wt th { text-align:left; font-size:9px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--faint); font-weight:600; padding:0 8px 6px 0; }
+  table.wt td { padding:3px 8px 3px 0; color:var(--dim); border-top:1px solid var(--hair); }
+  table.wt td.p { color:var(--ink); }
+
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .grid4 button { padding:16px 6px; font-size:26px; line-height:1; }
+  .grid4 button span { display:block; font-size:10px; color:var(--dim); margin-top:7px; letter-spacing:.08em; }
+
+  .toggle { display:flex; align-items:flex-start; gap:11px; padding:9px 0; cursor:pointer; }
+  .toggle input { margin-top:2px; accent-color:var(--accent); width:15px; height:15px; }
+  .toggle .t { font-size:12.5px; }
+  .toggle .d { font-size:11px; color:var(--faint); margin-top:2px; }
+
+  .over .big { font-size:30px; font-weight:600; letter-spacing:.1em; margin:10px 0 4px; }
+
+  .tip { position:fixed; z-index:60; pointer-events:none; background:#faf7f1f7;
+    border:1px solid var(--hair); border-radius:9px; padding:10px 12px; width:214px;
+    box-shadow:0 10px 26px #0000001f; }
+  .tip .h { font-size:12.5px; font-weight:600; margin-bottom:6px; }
+  .tip .r { display:flex; justify-content:space-between; font-size:11px; color:var(--dim); padding:1px 0; }
+  .tip .r b { color:var(--ink); font-weight:600; }
+  .tip .w { margin-top:7px; padding-top:7px; border-top:1px solid var(--hair);
+    font-size:11px; color:var(--dim); line-height:1.5; }
+
+  .err { position:fixed; inset:0; background:#fdf3f0; color:#8e3324; padding:24px;
+    font:12px ui-monospace,monospace; white-space:pre-wrap; overflow:auto; z-index:999; }
+  .boot { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--faint); letter-spacing:.34em; font-size:11px; }
+
+  .themesel { font:inherit; font-size:11.5px; color:var(--ink); background:#faf7f1e6;
+    border:1px solid var(--hair); border-radius:8px; padding:7px 8px; cursor:pointer;
+    letter-spacing:.03em; }
+  .themesel:hover { border-color:#cdc0ab; }
+
+  /* expected-damage readout while aiming */
+  .hits { display:flex; flex-direction:column; gap:1px; margin-top:4px; }
+  .hit { display:flex; justify-content:space-between; gap:12px; font-size:11px;
+    color:var(--ink); font-variant-numeric:tabular-nums; }
+  .hit.own { color:var(--gold); }
+  .hit.kill { color:var(--red); font-weight:600; }
+  .hit.none { color:var(--faint); }
+
+  /* whose turn it is, briefly, on handoff */
+  /* you are in check: impossible to miss, and it says what you must do */
+  .checkbar { position:absolute; left:50%; top:0; transform:translateX(-50%);
+    background:var(--red); color:#fff; font-weight:700; font-size:12.5px;
+    letter-spacing:.16em; padding:7px 22px; border-radius:0 0 10px 10px;
+    box-shadow:0 4px 18px #0003; pointer-events:none; }
+
+  .turntoast { position:absolute; left:50%; top:14%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:10px; padding:9px 18px; border-radius:24px;
+    background:var(--panel); border:1px solid var(--hair); box-shadow:0 8px 26px #0000001f;
+    font-size:14px; font-weight:600; letter-spacing:.06em; pointer-events:none;
+    animation:toastin 1.4s ease forwards; }
+  @keyframes toastin { 0%{opacity:0;transform:translate(-50%,-8px)} 12%{opacity:1;transform:translate(-50%,0)}
+    72%{opacity:1} 100%{opacity:0} }
+
+  /* live damage breakdown */
+  .dmg { border-top:1px solid var(--hair); padding-top:5px; }
+  .dl { display:flex; justify-content:space-between; gap:10px; padding:1.5px 0; font-size:11px; }
+  .dl span:last-child { font-variant-numeric:tabular-nums; }
+  .dl.bonus { color:var(--accent); }
+  .dl.tot { border-top:1px solid var(--hair); margin-top:4px; padding-top:4px;
+    font-weight:600; color:var(--ink); font-size:12.5px; }
+
+  /* big transient callout (EN PASSANT) */
+  .shout { position:absolute; left:50%; top:16%; transform:translateX(-50%);
+    font-size:34px; font-weight:700; letter-spacing:.18em; color:var(--accent);
+    text-shadow:0 2px 0 #fff, 0 0 26px #fff; pointer-events:none; }
+
+  /* aim-mode target readout */
+  .shotline { display:flex; align-items:center; gap:7px; font-size:12px; }
+  .shotline .pill { font-size:9.5px; letter-spacing:.12em; font-weight:600; text-transform:uppercase;
+    padding:2px 7px; border-radius:20px; }
+  .pill.clear { background:#5e8a4e1f; color:#3f6633; }
+  .pill.block { background:#b3402e1f; color:#8e3324; }
+  .pill.none  { background:#00000010; color:var(--faint); }
+
+  @media (max-width:1080px){ .rail{width:224px;min-width:224px} .rules{grid-template-columns:1fr} }
+</style>
+
+<div id="root"><div class="boot">CHESS ARTILLERY</div></div>
+<div id="errbox"></div>
+
+<script>
+  window.__fatal = function (m) {
+    var b = document.getElementById('errbox');
+    if (b) b.innerHTML = '<div class="err"><b>CHESS ARTILLERY failed to start</b>\n\n' +
+      String(m).replace(/</g, '&lt;') + '</div>';
+  };
+  window.addEventListener('error', function (e) { window.__fatal(e.message + '\n' + (e.error && e.error.stack || '')); });
+  window.addEventListener('unhandledrejection', function (e) { window.__fatal(e.reason && e.reason.stack || e.reason); });
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "three": "https://esm.sh/three@0.169.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.17.10?external=react,react-dom,three"
+  }
+}
+</script>
+
+<script src="https://unpkg.com/@babel/standalone@7.25.9/babel.min.js"></script>
+
+<script type="text/babel" data-type="module" data-presets="react">
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
+import * as THREE from 'three';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+
+/*═══════════════════════════════════════════════════════════════════════════
+  CHESS ARTILLERY — every balance number lives in CONFIG. Nothing below it
+  hard-codes a tunable value.
+
+  UNITS   ownTurn = a turn belonging to that piece's owner (every 2 plies)
+          ply     = one player's turn
+          1 world unit = 1 board square
+═══════════════════════════════════════════════════════════════════════════*/
+
+export const CONFIG = {
+  HP:     { p: 40,  n: 70,  b: 80,  r: 120, q: 180, k: 150 },
+  HEIGHT: { p: 0.5, n: 0.7, b: 0.8, r: 0.75, q: 1.0, k: 1.0 },   // blocks projectiles
+  PIECE_RADIUS: 0.30,                                            // collision cylinder
+  MUZZLE_HEIGHT_FRACTION: 0.78,   // shots leave below the top, so flat shots can hit short pieces
+
+  // Below this fraction a piece shows as WOUNDED. Cosmetic only: movement and
+  // attacks are never altered, so chess stays exactly chess.
+  CRIPPLE_AT_HP_FRACTION: 0.5,
+  PROMOTION_HP_FRACTION: 0.5,
+
+  GUNS_LIVE_AFTER_MOVES: 5,   // pure chess until both sides have completed 5 moves
+  KING_ARMS_AT_PIECES: 6,     // king gains a weapon once BOTH sides are down to this
+  CHECK_SHOT_MULT: 0.5,       // measured: 1.0 gives a 2-check kill. See README.
+  CHECK_SHOTS_DEFAULT: true,  // turn off for pure chess check — mate becomes the only win
+
+  /* Chess-culture damage bonuses — every one is a real chess principle, so a
+     player who understands chess shoots harder. Hover a piece for a live
+     breakdown; without that UI these are just hidden math. */
+  BONUS: {
+    PAWN_CHAIN:          2,     // defended by another friendly pawn
+    PAWN_PER_RANK:       5,     // per rank advanced past its own 4th
+    KNIGHT_OUTPOST:      2,     // on the opponent's 5th or 6th rank
+    KNIGHT_RIM:          0.5,   // a knight on the rim is dim
+    KNIGHT_PRONG_RADIUS: 1.5,   // fork prongs hit the 2 nearest enemies within this
+    KNIGHT_PRONG_FALLOFF: 0.5,  // the second prong lands at this fraction
+    BISHOP_FIANCHETTO:   2,     // b2 / g2 / b7 / g7
+    BISHOP_PAIR:         1.25,  // while both bishops are alive
+    BISHOP_OFF_COLOUR:   0,     // colour-complex lock. 0 = immune; 0.35 softens it
+    BISHOP_PIERCE_FALLOFF: 0.6, // each further piece in the beam takes less
+    ROOK_FILE_BLOCKED:   0.75,
+    ROOK_FILE_HALFOPEN:  1.0,
+    ROOK_FILE_OPEN:      2.0,
+    ROOK_SEVENTH:        1.5,   // pigs on the 7th
+    QUEEN_EARLY:         0.5,
+    QUEEN_EARLY_UNTIL:   12,    // …before this move number
+    // Ceiling on stacked POSITIVE multipliers. Measured: a fianchettoed bishop
+    // with the pair was doing 2.2× its base and one-shotting most of the board.
+    // Penalties are never capped — you can always be punished in full.
+    MAX_BONUS_MULT:      2.0,
+  },
+
+  // arcBand   which launch angles this weapon may use:
+  //           'flat' → the direct solution, 'lob' → the high one, 'both' → player picks.
+  // muzzleFrac height the shot leaves from, as a fraction of the piece's own height.
+  //           Low muzzles make a weapon cover-sensitive: a pawn (0.5 tall) blocks a
+  //           shell only if the trajectory actually dips below 0.5. Raise these and
+  //           shots start skimming over short pieces.
+  WEAPONS: {
+    p: { lineLocked:true, label:'Chain Gun',   damage:10, cooldown:1, maxRange:4.5,        sector:'pawnDiag',   sectorHalfDeg:30, arcBand:'flat', gravity:1, speed:10,   muzzleFrac:0.62, splashSquares:0, splashDamage:0,  hitscan:false, ignoresCover:false, prongs:0, tracer:'#d99512', size:0.070, blast:0.7 },
+    n: { label:'Fork Gun',    damage:18, cooldown:4, maxRange:5, minRange:2.2,        sector:'any',        sectorHalfDeg:180, arcBand:'lob',  gravity:1, speed:null, muzzleFrac:0.80, splashSquares:0, splashDamage:0,  hitscan:false, ignoresCover:true,  prongs:2, tracer:'#4f8f3c', size:0.095, blast:1.5 },
+    b: { lineLocked:true, label:'Sniper Beam', damage:25, cooldown:2, maxRange:Infinity, sector:'diagonal',   sectorHalfDeg:26, arcBand:'flat', gravity:0, speed:null, muzzleFrac:0.42, splashSquares:0, splashDamage:0,  hitscan:true,  ignoresCover:false, prongs:0, tracer:'#7a4fb5', size:0.060, blast:0.8 },
+    r: { lineLocked:true, label:'Railgun',     damage:35, cooldown:1, maxRange:Infinity, sector:'orthogonal', sectorHalfDeg:26, arcBand:'flat', gravity:0, speed:26,   muzzleFrac:0.55, splashSquares:0, splashDamage:0,  hitscan:false, ignoresCover:false, prongs:0, tracer:'#c25a1e', size:0.105, blast:1.2 },
+    q: { label:'Artillery',   damage:45, cooldown:4, maxRange:6,        sector:'any',        sectorHalfDeg:180, arcBand:'both', gravity:1, speed:null, muzzleFrac:0.80, splashSquares:1, splashDamage:20, hitscan:false, ignoresCover:false, prongs:0, tracer:'#b8306a', size:0.125, blast:2.0 },
+    k: { label:'Last Stand',  damage:20, cooldown:2, maxRange:2,        sector:'any',        sectorHalfDeg:180, arcBand:'flat', gravity:1, speed:null, muzzleFrac:0.80, splashSquares:0, splashDamage:0,  hitscan:false, ignoresCover:false, prongs:0, tracer:'#8a6408', size:0.085, blast:0.8, endgameOnly:true },
+  },
+  // Direct fire aims low on the target body so nearer pieces genuinely block the
+  // line, instead of the shell arcing over them.
+  TARGET_BODY_FRACTION: 0.30,
+  GRAVITY: 12,
+  MIN_RANGE: 0.75,                // you cannot target your own square
+  // per-weapon `minRange` overrides this; a mortar cannot fire at its own feet
+  SPLASH_HITS_DIRECT_TARGET: false,
+
+  FRIENDLY_FIRE_DEFAULT: true,
+  FRIENDLY_FIRE_MULT: 0.5,
+
+  // The king is never a legal shot target. Only checks hurt him.
+  KING: { IMMUNE_TO_PROJECTILES:true, BLOCKS_PROJECTILES:true },
+
+  // Draws are exactly chess draws. No stalemate bleed, no sudden-death timer.
+  REPETITION_DRAW: 3,
+  FIFTY_MOVE_PLIES: 100,           // 50 moves by each side with no capture or pawn move
+
+  // Capturing kills instantly; the capturer takes the victim's REMAINING HP as
+  // recoil, capped at half its own max. Wounded targets are cheap to finish,
+  // healthy ones hurt to take. En passant is exempt entirely.
+  CAPTURE_DAMAGE_DEFAULT: true,
+  CAPTURE_RECOIL_CAP_FRACTION: 0.5,
+  CAPTURE_RECOIL_HITS_KING: true,
+
+  SCORCH_PLIES: 2,
+
+  SHOT_CLOCK_SECONDS: 20,
+  SHOT_CLOCK_DEFAULT: false,   // off by default: a thinking game shouldn't punish thinking
+  AUTO_FLIP_DEFAULT: true,     // hot-seat: swing the board to whoever is on move
+  ASSIST_MODE_DEFAULT: false,
+  SOUND_DEFAULT: true,
+  SOUND: { master:0.55, launch:0.34, impact:0.42, beam:0.20, whistle:0.05, ui:0.07 },
+
+  SIM_DT: 1 / 240,
+  PREVIEW_DT: 1 / 90,
+  SIM_MAX_TIME: 9,
+  TRACER_POINTS: 34,
+  BEAM_LIFETIME_S: 0.5,
+
+  // ── cinematics ───────────────────────────────────────────────────────
+  FX: {
+    shakeOnHit: 0.16, shakeDecay: 4.2, shakeMax: 0.42,
+    flashTime: 0.20, waveTime: 0.55, debrisTime: 0.95, debrisCount: 12,
+    muzzleTime: 0.11, floaterTime: 1.15, floaterRise: 1.0,
+    impactLight: 14, tracerLight: 3.2,
+  },
+  // The aiming camera is pinned to a FIXED bearing behind the shooter. It must not
+  // follow the live aim: aim comes from where the cursor meets the ground, so a
+  // camera that rotated with it would feed back into itself and spiral.
+  CAM: { dist:13.2, polar:0.90, minPolar:0.22, maxPolar:1.42, minDist:6.5, maxDist:24,
+         fireBack:4.2, fireUp:3.6, fireLookAhead:4.5, fireLookY:0.05,
+         lerp:0.14, fireLerp:0.12, followShell:0.45 },
+};
+
+/*═══════════════════════════════════════════════════════════════════════════
+  1. BOARD HELPERS
+═══════════════════════════════════════════════════════════════════════════*/
+
+const FILES = 'abcdefgh';
+const TYPES = ['p','n','b','r','q','k'];
+const NAME  = { p:'Pawn', n:'Knight', b:'Bishop', r:'Rook', q:'Queen', k:'King' };
+const GLYPH = { w:{p:'♙',n:'♘',b:'♗',r:'♖',q:'♕',k:'♔'}, b:{p:'♟',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚'} };
+const SAN_L = { p:'', n:'N', b:'B', r:'R', q:'Q', k:'K' };
+const SIDE  = { w:'White', b:'Black' };
+
+const fileOf = (sq) => sq & 7;
+const rankOf = (sq) => sq >> 3;
+const mkSq   = (f,r) => r*8+f;
+const onBoard= (f,r) => f>=0 && f<8 && r>=0 && r<8;
+const sqName = (sq) => FILES[fileOf(sq)] + (rankOf(sq)+1);
+const other  = (c) => (c==='w' ? 'b' : 'w');
+
+const worldOf = (sq) => [fileOf(sq)-3.5, 0, 3.5-rankOf(sq)];
+function sqOfWorld(x, z) {
+  const f = Math.round(x+3.5), r = Math.round(3.5-z);
+  return onBoard(f,r) ? mkSq(f,r) : -1;
+}
+
+const DIR_ORTHO = [[0,1],[1,0],[0,-1],[-1,0]];
+const DIR_DIAG  = [[1,1],[1,-1],[-1,-1],[-1,1]];
+const DIR_ALL   = [...DIR_ORTHO, ...DIR_DIAG];
+const KNIGHT_OFFSETS = [[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]];
+
+const clamp = (v,a,b) => (v<a?a:v>b?b:v);
+const D2R = Math.PI/180;
+const normAng = (a) => { while(a>Math.PI) a-=2*Math.PI; while(a<-Math.PI) a+=2*Math.PI; return a; };
+const angDiff = (a,b) => normAng(a-b);
+/** yaw 0 points along −z (White's forward). */
+const yawDir = (y) => [Math.sin(y), -Math.cos(y)];
+const yawOf  = (dx,dz) => Math.atan2(dx, -dz);
+
+/*═══════════════════════════════════════════════════════════════════════════
+  2. CHESS RULES
+═══════════════════════════════════════════════════════════════════════════*/
+
+/**
+ * Wounded is now PURELY cosmetic — it marks a piece on the health bar and nothing
+ * more.
+ *
+ * It used to halve a slider's move range, and that same range fed attack
+ * detection, so a wounded rook silently stopped giving check from across the
+ * board: the position looked like check, the engine disagreed, and every piece
+ * was free to move. Chess has to be exactly chess or nothing on top of it can be
+ * trusted. Damage kills pieces; it never edits the rules.
+ */
+const isCrippled = (p) => p.hp < p.maxHp * CONFIG.CRIPPLE_AT_HP_FRACTION;
+const slideRange = () => 7;
+const knightHasDir = () => true;   // knights are never movement-impaired
+
+function slideMoves(st, from, dirs, maxSteps, color, out) {
+  const f0=fileOf(from), r0=rankOf(from);
+  for (const [df,dr] of dirs) for (let s=1; s<=maxSteps; s++) {
+    const f=f0+df*s, r=r0+dr*s; if(!onBoard(f,r)) break;
+    const to=mkSq(f,r), occ=st.board[to];
+    if (occ==null) out.push({from,to});
+    else { if (st.pieces[occ].color!==color) out.push({from,to,capture:occ}); break; }
+  }
+}
+
+function pieceMoves(st, id, opts={}) {
+  const p = st.pieces[id]; if(!p) return [];
+  const out=[], from=p.sq, f0=fileOf(from), r0=rankOf(from), c=p.color;
+  if (p.type==='p') {
+    const dir = c==='w'?1:-1, start = c==='w'?1:6, last = c==='w'?7:0, r1=r0+dir;
+    if (onBoard(f0,r1) && st.board[mkSq(f0,r1)]==null) {
+      out.push({from,to:mkSq(f0,r1),promote:r1===last});
+      const r2=r0+dir*2;
+      // Wounding never touches a pawn — only sliding pieces lose range.
+      if (r0===start && st.board[mkSq(f0,r2)]==null) out.push({from,to:mkSq(f0,r2),double:true});
+    }
+    for (const df of [-1,1]) {
+      const f=f0+df; if(!onBoard(f,r1)) continue;
+      const to=mkSq(f,r1), occ=st.board[to];
+      if (occ!=null && st.pieces[occ].color!==c) out.push({from,to,capture:occ,promote:r1===last});
+      else if (occ==null && to===st.ep) out.push({from,to,capture:st.board[mkSq(f,r0)],enPassant:true});
+    }
+  } else if (p.type==='n') {
+    KNIGHT_OFFSETS.forEach(([df,dr],i)=>{
+      if(!knightHasDir(p,i)) return;
+      const f=f0+df, r=r0+dr; if(!onBoard(f,r)) return;
+      const to=mkSq(f,r), occ=st.board[to];
+      if (occ==null) out.push({from,to});
+      else if (st.pieces[occ].color!==c) out.push({from,to,capture:occ});
+    });
+  }
+  else if (p.type==='b') slideMoves(st,from,DIR_DIAG, slideRange(p),c,out);
+  else if (p.type==='r') slideMoves(st,from,DIR_ORTHO,slideRange(p),c,out);
+  else if (p.type==='q') slideMoves(st,from,DIR_ALL,  slideRange(p),c,out);
+  else if (p.type==='k') {
+    slideMoves(st,from,DIR_ALL,1,c,out);
+    if (!opts.noCastle) {
+      const home = c==='w'?4:60;
+      if (from===home && !attacked(st,home,other(c))) {
+        if (st.castling[c+'k'] && st.board[home+1]==null && st.board[home+2]==null &&
+            !attacked(st,home+1,other(c)) && !attacked(st,home+2,other(c)))
+          out.push({from,to:home+2,castle:'k'});
+        if (st.castling[c+'q'] && st.board[home-1]==null && st.board[home-2]==null &&
+            st.board[home-3]==null && !attacked(st,home-1,other(c)) && !attacked(st,home-2,other(c)))
+          out.push({from,to:home-2,castle:'q'});
+      }
+    }
+  }
+  return out;
+}
+
+/** Walks outward from `sq`, so a crippled slider's shortened reach is respected. */
+function attacked(st, sq, color) {
+  const f0=fileOf(sq), r0=rankOf(sq);
+  for (let i=0;i<8;i++){
+    const [df,dr]=KNIGHT_OFFSETS[i], f=f0-df, r=r0-dr; if(!onBoard(f,r)) continue;
+    const id=st.board[mkSq(f,r)]; if(id==null) continue;
+    const p=st.pieces[id];
+    if (p.color===color && p.type==='n' && knightHasDir(p,i)) return true;
+  }
+  const pdr = color==='w' ? -1 : 1;
+  for (const df of [-1,1]){
+    const f=f0+df, r=r0+pdr; if(!onBoard(f,r)) continue;
+    const id=st.board[mkSq(f,r)]; if(id==null) continue;
+    if (st.pieces[id].color===color && st.pieces[id].type==='p') return true;
+  }
+  for (const [df,dr] of DIR_ALL){
+    const f=f0+df, r=r0+dr; if(!onBoard(f,r)) continue;
+    const id=st.board[mkSq(f,r)]; if(id==null) continue;
+    if (st.pieces[id].color===color && st.pieces[id].type==='k') return true;
+  }
+  for (const [df,dr] of DIR_ALL){
+    const diag = df!==0 && dr!==0;
+    for (let s=1;s<=7;s++){
+      const f=f0+df*s, r=r0+dr*s; if(!onBoard(f,r)) break;
+      const id=st.board[mkSq(f,r)]; if(id==null) continue;
+      const p=st.pieces[id];
+      if (p.color===color && s<=slideRange(p) && (p.type==='q' || (diag?p.type==='b':p.type==='r'))) return true;
+      break;
+    }
+  }
+  return false;
+}
+
+const findKing = (st,c) => { for(const id in st.pieces){const p=st.pieces[id]; if(p.color===c&&p.type==='k') return p;} return null; };
+const inCheck  = (st,c) => { const k=findKing(st,c); return k ? attacked(st,k.sq,other(c)) : false; };
+function checkAttackerCount(st,c){
+  const k=findKing(st,c); if(!k) return 0;
+  let n=0;
+  for(const id in st.pieces){ const p=st.pieces[id]; if(p.color===c) continue;
+    if (pieceMoves(st,id,{noCastle:true}).some(m=>m.to===k.sq)) n++; }
+  return n;
+}
+
+function projectMove(st, mv) {
+  const board=st.board.slice(), pieces={};
+  for(const k in st.pieces) pieces[k]=st.pieces[k];
+  const id=board[mv.from], p={...pieces[id]};
+  if (mv.capture!=null){ const t=pieces[mv.capture]; if(t){ board[t.sq]=null; delete pieces[mv.capture]; } }
+  board[mv.from]=null; board[mv.to]=id; p.sq=mv.to; pieces[id]=p;
+  if (mv.castle){
+    const home = p.color==='w'?0:56;
+    const rf = mv.castle==='k'?home+7:home, rt = mv.castle==='k'?home+5:home+3;
+    const rid=board[rf];
+    if(rid!=null){ const rp={...pieces[rid]}; board[rf]=null; board[rt]=rid; rp.sq=rt; pieces[rid]=rp; }
+  }
+  return { board, pieces, ep:null, castling:st.castling };
+}
+
+function legalMoves(st, color) {
+  const out=[];
+  for(const id in st.pieces){
+    if (st.pieces[id].color!==color) continue;
+    for(const mv of pieceMoves(st,id)) if(!inCheck(projectMove(st,mv),color)) out.push(mv);
+  }
+  return out;
+}
+const legalMovesFor = (st,id) => {
+  const p=st.pieces[id]; if(!p) return [];
+  return pieceMoves(st,id).filter(mv=>!inCheck(projectMove(st,mv),p.color));
+};
+
+/*═══════════════════════════════════════════════════════════════════════════
+  3. STATE
+═══════════════════════════════════════════════════════════════════════════*/
+
+const BACK_RANK = ['r','n','b','q','k','b','n','r'];
+
+function newGame(settings) {
+  const board=new Array(64).fill(null), pieces={};
+  let n=0;
+  const add=(type,color,sq)=>{ const id=color+type+(n++);
+    pieces[id]={id,type,color,sq,hp:CONFIG.HP[type],maxHp:CONFIG.HP[type],
+      cooldown:0,hasMoved:false,promotedFrom:null};
+    board[sq]=id; };
+  for(let f=0;f<8;f++){
+    add(BACK_RANK[f],'w',mkSq(f,0)); add('p','w',mkSq(f,1));
+    add('p','b',mkSq(f,6));          add(BACK_RANK[f],'b',mkSq(f,7));
+  }
+  return {
+    board, pieces, turn:'w', ply:0, ep:null, epPawn:null,
+    castling:{wk:true,wq:true,bk:true,bq:true},
+    scorch:[], fx:[], posCounts:{}, halfmove:0, banner:null, kingsArmedAnnounced:false,
+    turnState:{movedId:null,firedId:null,forfeited:false,san:null},
+    log:[], moveList:[], lastMoveSquares:null,
+    gameOver:null,
+    settings, seq:0,
+  };
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  3b. SOUND — fully synthesised, so the game stays a single file with no assets.
+  Browsers block audio until a gesture, so unlock() is called from the START button.
+═══════════════════════════════════════════════════════════════════════════*/
+
+const SFX = (() => {
+  let ctx = null, master = null, muted = false, noise = null;
+
+  function ensure() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = CONFIG.SOUND.master;
+      master.connect(ctx.destination);
+      const n = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const d = n.getChannelData(0);
+      for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+      noise = n;
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  const now = () => ctx.currentTime;
+
+  /** noise burst through a swept low-pass — the body of thumps and booms */
+  function burst(t0, dur, f0, f1, gain, q) {
+    const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(f0, t0);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(40,f1), t0+dur);
+    lp.Q.value = q || 1;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    src.connect(lp); lp.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0+dur+0.02);
+  }
+  /** pitched tone sweep — muzzle crack, whistle, beam */
+  function tone(t0, dur, f0, f1, gain, type) {
+    const o = ctx.createOscillator(); o.type = type || 'sine';
+    o.frequency.setValueAtTime(f0, t0);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20,f1), t0+dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0+dur+0.02);
+  }
+
+  return {
+    unlock(){ ensure(); },
+    setMuted(v){ muted = v; if (master) master.gain.value = v ? 0 : CONFIG.SOUND.master; },
+    isMuted(){ return muted; },
+
+    /** launch report; `flight` seconds of shell whistle trailing it */
+    launch(type, flight) {
+      if (muted || !ensure()) return;
+      const t = now(), S = CONFIG.SOUND;
+      if (type === 'b') { // beam: bright electric zap, no report
+        tone(t, 0.30, 2000, 260, S.beam, 'sawtooth');
+        burst(t, 0.16, 5000, 900, S.beam*0.5);
+        return;
+      }
+      const heavy = type === 'q' || type === 'r';
+      tone (t, heavy?0.20:0.11, heavy?190:300, heavy?46:80, S.launch);
+      burst(t, heavy?0.28:0.15, heavy?2600:3400, heavy?150:400, S.launch*0.9);
+      if (flight > 0.25 && (type==='n' || type==='q'))
+        tone(t+0.06, Math.min(flight-0.06, 1.6), 1250, 520, S.whistle, 'triangle');
+    },
+    impact(power) {
+      if (muted || !ensure()) return;
+      const t = now(), S = CONFIG.SOUND, p = clamp(power, 0.5, 2.2);
+      burst(t, 0.30+0.16*p, 1500, 70, S.impact*Math.min(1.15, 0.55+0.32*p));
+      tone (t, 0.26+0.14*p, 130*(1/p), 34, S.impact*0.85);
+      burst(t+0.03, 0.55+0.2*p, 480, 90, S.impact*0.32);   // rolling tail
+    },
+    thud() {   // a piece dies
+      if (muted || !ensure()) return;
+      const t = now();
+      burst(t, 0.22, 700, 60, CONFIG.SOUND.impact*0.6);
+      tone (t, 0.18, 110, 40, CONFIG.SOUND.impact*0.5);
+    },
+    tick(kind) {  // UI: select / place / deny
+      if (muted || !ensure()) return;
+      const t = now(), S = CONFIG.SOUND;
+      if (kind === 'deny') { tone(t, 0.10, 210, 150, S.ui*0.9, 'square'); return; }
+      tone(t, 0.045, kind==='move'?520:880, kind==='move'?300:660, S.ui, 'triangle');
+    },
+  };
+})();
+
+/*═══════════════════════════════════════════════════════════════════════════
+  4. LOG + FX EVENTS
+═══════════════════════════════════════════════════════════════════════════*/
+
+const label = (p) => `${SIDE[p.color]} ${NAME[p.type]} ${sqName(p.sq)}`;
+
+function say(st, kind, text) {
+  st.log.push({ id: st.seq++, turn: Math.floor(st.ply/2)+1, kind, text });
+  if (st.log.length > 300) st.log.splice(0, st.log.length-300);
+}
+/** Visual-only events. Components self-time from mount; pruned each turn. */
+function fx(st, kind, o) {
+  st.fx.push({ id: st.seq++, kind, ...o });
+  if (st.fx.length > 60) st.fx.splice(0, st.fx.length-60);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  5. DAMAGE
+═══════════════════════════════════════════════════════════════════════════*/
+
+function applyDamage(st, id, amount, o={}) {
+  const p = st.pieces[id];
+  if (!p || amount<=0 || st.gameOver) return 0;
+  const [wx,,wz] = worldOf(p.sq);
+  const topY = CONFIG.HEIGHT[p.type] + 0.2;
+
+  // Shots pass through the king harmlessly. Only checks hurt him.
+  if (p.type==='k' && o.projectile && CONFIG.KING.IMMUNE_TO_PROJECTILES) {
+    say(st,'sys',`${label(p)} cannot be shot — the round passes through.`);
+    fx(st,'float',{x:wx,y:topY,z:wz,text:'IMMUNE',color:'#6d6355'});
+    return 0;
+  }
+  let dmg = amount; const notes=[];
+  if (o.projectile && o.srcColor===p.color) {
+    if (!st.settings.friendlyFire) { say(st,'sys',`Friendly fire OFF — ${label(p)} unharmed.`); return 0; }
+    dmg *= CONFIG.FRIENDLY_FIRE_MULT; notes.push('friendly fire');
+  }
+  dmg = Math.max(1, Math.round(dmg));
+
+  const wasCrippled = isCrippled(p);
+  p.hp = Math.max(0, p.hp - dmg);
+  say(st,'dmg',`${o.source||'Damage'} → ${label(p)} −${dmg}${notes.length?` (${notes.join(', ')})`:''} · ${p.hp}/${p.maxHp}`);
+  fx(st,'float',{x:wx,y:topY,z:wz,text:'−'+dmg,color:o.srcColor===p.color?'#a8710f':'#a8291a'});
+
+  if (p.hp<=0) { killPiece(st,id,o.source||'destroyed'); return dmg; }
+  if (!wasCrippled && isCrippled(p)) {
+    say(st,'crip',`${label(p)} CRIPPLED — ${crippleNote(p)}`);
+    fx(st,'float',{x:wx,y:topY+0.28,z:wz,text:'CRIPPLED',color:'#8a6408'});
+  }
+  return dmg;
+}
+
+/** Wounded is a warning light, not a rule change. */
+function crippleNote() { return 'under half health — no movement penalty'; }
+
+function killPiece(st, id, reason) {
+  const p = st.pieces[id]; if(!p) return;
+  const sq = p.sq, [wx,,wz] = worldOf(sq);
+  say(st,'kill',`${label(p)} DESTROYED (${reason}).`);
+  fx(st,'blast',{x:wx,y:CONFIG.HEIGHT[p.type]*0.5,z:wz,power:1.5,color:'#ffb066'});
+  st.board[sq]=null;
+  delete st.pieces[id];
+  if (p.type==='r') {
+    if(sq===0) st.castling.wq=false; if(sq===7) st.castling.wk=false;
+    if(sq===56) st.castling.bq=false; if(sq===63) st.castling.bk=false;
+  }
+  if (p.type==='k') { st.castling[p.color+'k']=false; st.castling[p.color+'q']=false; }
+  if (st.epPawn===id){ st.ep=null; st.epPawn=null; }
+  if (p.type==='k') endGame(st, other(p.color), `${SIDE[p.color]}'s king was destroyed`);
+}
+
+function endGame(st, winner, reason) {
+  if (st.gameOver) return;
+  st.gameOver = { winner, reason };
+  say(st,'sys', winner ? `${SIDE[winner]} wins — ${reason}.` : `Draw — ${reason}.`);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  6. MOVES
+═══════════════════════════════════════════════════════════════════════════*/
+
+function buildSAN(st, mv, promoteType) {
+  if (mv.castle) return mv.castle==='k' ? 'O-O' : 'O-O-O';
+  const mid = st.board[mv.from], p = mid!=null ? st.pieces[mid] : null;
+  if (!p) return '??';
+  const cap = mv.capture!=null;
+  if (p.type==='p') {
+    let s = cap ? FILES[fileOf(mv.from)]+'x'+sqName(mv.to) : sqName(mv.to);
+    if (mv.promote) s += '='+SAN_L[promoteType||'q'];
+    return s;
+  }
+  let dis='';
+  const rivals = Object.values(st.pieces).filter(q =>
+    q.color===p.color && q.type===p.type && q.id!==p.id && legalMovesFor(st,q.id).some(m=>m.to===mv.to));
+  if (rivals.length) {
+    dis = rivals.every(q=>fileOf(q.sq)!==fileOf(mv.from)) ? FILES[fileOf(mv.from)]
+        : rivals.every(q=>rankOf(q.sq)!==rankOf(mv.from)) ? String(rankOf(mv.from)+1)
+        : sqName(mv.from);
+  }
+  return SAN_L[p.type]+dis+(cap?'x':'')+sqName(mv.to);
+}
+
+function applyMove(st, mv, promoteType) {
+  const id = st.board[mv.from];
+  const p = id!=null ? st.pieces[id] : null;
+  if (!p) return false;                       // stale move — square already empty
+  const san = buildSAN(st, mv, promoteType);
+  const fromName = sqName(mv.from);
+
+  let recoil = 0;
+  if (mv.capture!=null) {
+    const t = st.pieces[mv.capture];
+    if (t) {
+      // Recoil = the victim's REMAINING HP, capped at half your own max.
+      // En passant is a clean free kill — no recoil at all.
+      recoil = (st.settings.captureDamage && !mv.enPassant)
+        ? Math.min(t.hp, CONFIG.CAPTURE_RECOIL_CAP_FRACTION * p.maxHp) : 0;
+      if (mv.enPassant) {
+        say(st,'kill',`EN PASSANT — ${label(t)} removed for free. No recoil.`);
+        const [ex,,ez] = worldOf(t.sq);
+        fx(st,'float',{x:ex,y:CONFIG.HEIGHT[t.type]+0.5,z:ez,text:'EN PASSANT',color:'#8a3ea8'});
+        st.banner = { text:'EN PASSANT', until: st.ply + 2 };
+      } else {
+        say(st,'move',`${SIDE[p.color]} ${NAME[p.type]} ${fromName}×${sqName(mv.to)} takes ${NAME[t.type]} (${t.hp} HP left).`);
+      }
+      killPiece(st, mv.capture, 'captured');
+    }
+  }
+
+  st.board[p.sq]=null; st.board[mv.to]=id; p.sq=mv.to;
+  p.hasMoved=true;
+
+  if (mv.castle) {
+    const home = p.color==='w'?0:56;
+    const rf = mv.castle==='k'?home+7:home, rt = mv.castle==='k'?home+5:home+3;
+    const rid = st.board[rf];
+    if (rid!=null){ st.board[rf]=null; st.board[rt]=rid;
+      st.pieces[rid].sq=rt; st.pieces[rid].hasMoved=true; }
+    say(st,'move',`${SIDE[p.color]} castles ${mv.castle==='k'?'king-side':'queen-side'}.`);
+  } else if (mv.capture==null) {
+    say(st,'move',`${SIDE[p.color]} ${NAME[p.type]} ${fromName} → ${sqName(mv.to)}.`);
+  }
+
+  if (mv.promote) {
+    const nt = promoteType||'q';
+    p.promotedFrom=p.type; p.type=nt; p.maxHp=CONFIG.HP[nt];
+    p.hp = Math.round(p.maxHp*CONFIG.PROMOTION_HP_FRACTION);
+    say(st,'sys',`Promoted to ${NAME[nt]} at ${sqName(mv.to)} — ${p.hp}/${p.maxHp} HP.`);
+  }
+
+  if (p.type==='k'){ st.castling[p.color+'k']=false; st.castling[p.color+'q']=false; }
+  if (p.type==='r'){
+    if(mv.from===0) st.castling.wq=false; if(mv.from===7) st.castling.wk=false;
+    if(mv.from===56) st.castling.bq=false; if(mv.from===63) st.castling.bk=false;
+  }
+  if(mv.to===0) st.castling.wq=false; if(mv.to===7) st.castling.wk=false;
+  if(mv.to===56) st.castling.bq=false; if(mv.to===63) st.castling.bk=false;
+
+  if (mv.double){ st.ep=(mv.from+mv.to)/2; st.epPawn=id; } else { st.ep=null; st.epPawn=null; }
+
+  // Fifty-move clock: any capture or pawn move resets it.
+  if (mv.capture!=null || p.type==='p' || mv.promote) st.halfmove = 0; else st.halfmove++;
+
+  /* Recoil can never be lethal, and that is a RULES requirement, not a mercy.
+     Move legality is judged on the position after the move; if recoil then killed
+     the capturer, a piece that captured *along its own pin line* would vanish and
+     expose its king — a move the engine had already certified legal. Clamping to
+     leave 1 HP closes that hole and reads better anyway: capturing maims you, it
+     does not kill you. */
+  if (recoil>0 && (p.type!=='k' || CONFIG.CAPTURE_RECOIL_HITS_KING)) {
+    const safe = Math.min(Math.round(recoil), p.hp - 1);
+    if (safe > 0) applyDamage(st, id, safe, { source:'Capture recoil' });
+    else say(st,'sys',`${label(p)} survives the impact on ${sqName(mv.to)} with 1 HP.`);
+  }
+
+  st.turnState.movedId = id;
+  st.turnState.san = san;
+  return true;
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  7. WEAPONS — sector, aim solver, ballistics
+═══════════════════════════════════════════════════════════════════════════*/
+
+const weaponSpeed = (w) => (w.speed!=null ? w.speed : Math.sqrt(CONFIG.GRAVITY*w.maxRange));
+const muzzleY = (p) => {
+  const w = CONFIG.WEAPONS[p.type];
+  return CONFIG.HEIGHT[p.type] * ((w && w.muzzleFrac) || CONFIG.MUZZLE_HEIGHT_FRACTION);
+};
+
+/*───────────────────────────────────────────────────────────────────────────
+  CHESS-CULTURE DAMAGE. Each bonus is a real chess principle. damageProfile()
+  returns the itemised breakdown so the hover panel and the log can show the
+  player exactly why a number changed — without that, these are hidden math.
+───────────────────────────────────────────────────────────────────────────*/
+
+const FIANCHETTO = new Set([mkSq(1,1), mkSq(6,1), mkSq(1,6), mkSq(6,6)]); // b2 g2 b7 g7
+const squareTint = (sq) => (fileOf(sq) + rankOf(sq)) & 1;
+const relRank    = (p) => (p.color==='w' ? rankOf(p.sq) : 7-rankOf(p.sq));
+const fullTurn   = (st) => Math.floor(st.ply/2) + 1;
+const pieceCount = (st,c) => Object.values(st.pieces).filter(p=>p.color===c).length;
+
+/** Guns are cold until both sides have completed the opening. */
+const gunsLive = (st) => st.ply >= CONFIG.GUNS_LIVE_AFTER_MOVES * 2;
+/** Steinitz was right — but only once the board has emptied out. */
+const kingArmed = (st) =>
+  pieceCount(st,'w') <= CONFIG.KING_ARMS_AT_PIECES && pieceCount(st,'b') <= CONFIG.KING_ARMS_AT_PIECES;
+
+function weaponOf(p, st) {
+  const w = CONFIG.WEAPONS[p.type];
+  if (!w) return null;
+  if (w.endgameOnly && !(st && kingArmed(st))) return null;
+  return w;
+}
+
+/** Is this pawn defended by another friendly pawn? (a chained pawn hits twice as hard) */
+function pawnIsChained(st, p) {
+  const back = p.color==='w' ? -1 : 1;
+  const f0 = fileOf(p.sq), r0 = rankOf(p.sq);
+  for (const df of [-1,1]) {
+    const f=f0+df, r=r0+back;
+    if (!onBoard(f,r)) continue;
+    const id = st.board[mkSq(f,r)];
+    if (id!=null && st.pieces[id].color===p.color && st.pieces[id].type==='p') return true;
+  }
+  return false;
+}
+
+/**
+ * Open / half-open / blocked, judged along ONE line. A rook firing sideways down
+ * an open rank must be graded on that rank — reading its file regardless both
+ * misdescribed the shot and quietly gutted the rook, whose file is usually
+ * blocked by its own pawn in the opening.
+ */
+function lineState(st, sq, color, alongRank) {
+  let own=false, foe=false;
+  for (let i=0;i<8;i++){
+    const s2 = alongRank ? mkSq(i, rankOf(sq)) : mkSq(fileOf(sq), i);
+    const id = st.board[s2];
+    if (id==null || st.pieces[id].type!=='p') continue;
+    if (st.pieces[id].color===color) own=true; else foe=true;
+  }
+  const what = alongRank ? 'rank' : 'file';
+  if (own) return { name:'Blocked '+what,   mult:CONFIG.BONUS.ROOK_FILE_BLOCKED };
+  if (foe) return { name:'Half-open '+what, mult:CONFIG.BONUS.ROOK_FILE_HALFOPEN };
+  return     { name:'Open '+what,     mult:CONFIG.BONUS.ROOK_FILE_OPEN };
+}
+/** Back-compat helper used by the console/debug surface. */
+const fileState = (st, file, color) => lineState(st, mkSq(file,0), color, false);
+
+/** A friendly rook doubled on the same file or rank with nothing between. */
+function batteryPartner(st, p) {
+  for (const id in st.pieces) {
+    const q = st.pieces[id];
+    if (q.id===p.id || q.color!==p.color || q.type!=='r') continue;
+    const sameFile = fileOf(q.sq)===fileOf(p.sq), sameRank = rankOf(q.sq)===rankOf(p.sq);
+    if (!sameFile && !sameRank) continue;
+    const step = sameFile ? (q.sq>p.sq ? 8 : -8) : (q.sq>p.sq ? 1 : -1);
+    let clear = true;
+    for (let s=p.sq+step; s!==q.sq; s+=step) if (st.board[s]!=null) { clear=false; break; }
+    if (clear) return q;
+  }
+  return null;
+}
+
+/**
+ * @param ctx.targetSq  square being hit — needed for the bishop's colour lock
+ * @param ctx.noBattery internal, stops rook batteries recursing
+ */
+function damageProfile(st, p, ctx = {}) {
+  const w = weaponOf(p, st);
+  if (!w) return { base:0, mods:[], total:0, label:'—', armed:false };
+  const B = CONFIG.BONUS;
+  const mods = [];
+  const base = w.damage;
+  let total = base;
+
+  if (p.type==='p') {
+    const adv = Math.max(0, relRank(p) - 3);
+    if (adv>0){ const add = adv*B.PAWN_PER_RANK;
+      mods.push({ name:`Passed pawn +${adv} rank${adv>1?'s':''}`, text:`+${add}` }); total += add; }
+    if (pawnIsChained(st,p)){ mods.push({ name:'Chained pawn', text:'×2' }); total *= B.PAWN_CHAIN; }
+  }
+  else if (p.type==='n') {
+    const rr = relRank(p);
+    if (rr===4 || rr===5){ mods.push({ name:'Outpost', text:'×2' }); total *= B.KNIGHT_OUTPOST; }
+    const f = fileOf(p.sq);
+    if (f===0 || f===7){ mods.push({ name:'Knight on the rim', text:'×0.5' }); total *= B.KNIGHT_RIM; }
+  }
+  else if (p.type==='b') {
+    if (FIANCHETTO.has(p.sq)){ mods.push({ name:'Fianchetto', text:'×2' }); total *= B.BISHOP_FIANCHETTO; }
+    if (Object.values(st.pieces).filter(q=>q.color===p.color&&q.type==='b').length>=2){
+      mods.push({ name:'Bishop pair', text:'+25%' }); total *= B.BISHOP_PAIR; }
+    if (ctx.targetSq!=null && squareTint(ctx.targetSq)!==squareTint(p.sq)){
+      mods.push({ name:'Wrong colour complex', text: B.BISHOP_OFF_COLOUR===0?'×0':'×'+B.BISHOP_OFF_COLOUR });
+      total *= B.BISHOP_OFF_COLOUR; }
+  }
+  else if (p.type==='r') {
+    // Which line is this shot travelling down? With no target (hover panel) show
+    // the rook's better line, so the reading reflects what it could actually do.
+    let alongRank;
+    if (ctx.targetSq != null) {
+      alongRank = Math.abs(fileOf(ctx.targetSq)-fileOf(p.sq)) > Math.abs(rankOf(ctx.targetSq)-rankOf(p.sq));
+    } else {
+      alongRank = lineState(st,p.sq,p.color,true).mult > lineState(st,p.sq,p.color,false).mult;
+    }
+    const fs = lineState(st, p.sq, p.color, alongRank);
+    mods.push({ name:fs.name, text:'×'+fs.mult }); total *= fs.mult;
+    if (relRank(p)===6){ mods.push({ name:'Pigs on the 7th', text:'+50%' }); total *= B.ROOK_SEVENTH; }
+  }
+  else if (p.type==='q') {
+    if (fullTurn(st) < B.QUEEN_EARLY_UNTIL){
+      mods.push({ name:`Early queen (before move ${B.QUEEN_EARLY_UNTIL})`, text:'×0.5' });
+      total *= B.QUEEN_EARLY; }
+  }
+
+  // Clamp the stacked multiplier, recomputed from base so the cap is exact rather
+  // than order-dependent. Penalties (<1) are never capped — you can always be
+  // punished in full.
+  if (base > 0 && total/base > B.MAX_BONUS_MULT) {
+    total = base * B.MAX_BONUS_MULT;
+    mods.push({ name:`Capped at ×${B.MAX_BONUS_MULT}`, text:'—' });
+  }
+
+  // A rook battery is a SECOND GUN firing, not a bonus on the first, so it is
+  // added after the cap. Both barrels then go on cooldown.
+  if (p.type==='r' && !ctx.noBattery) {
+    const partner = batteryPartner(st,p);
+    if (partner) {
+      const o = damageProfile(st, partner, { ...ctx, noBattery:true });
+      mods.push({ name:`Battery with ${sqName(partner.sq)}`, text:`+${o.total}` });
+      total += o.total;
+    }
+  }
+  return { base, mods, total: Math.max(0, Math.round(total)), label:w.label, armed:true };
+}
+
+function sectorCenters(p, st) {
+  const w = weaponOf(p, st) || CONFIG.WEAPONS[p.type]; if(!w) return null;
+  const fwd = p.color==='w' ? 0 : Math.PI;
+  switch (w.sector) {
+    case 'pawnDiag':   return [normAng(fwd+45*D2R), normAng(fwd-45*D2R)];
+    case 'diagonal':   return [45*D2R, 135*D2R, -135*D2R, -45*D2R];
+    case 'orthogonal': return [0, Math.PI/2, Math.PI, -Math.PI/2];
+    default:           return null;
+  }
+}
+const SECTOR_TEXT = { pawnDiag:'forward diagonals', diagonal:'diagonals', orthogonal:'ranks & files', any:'any direction' };
+
+function clampYawToSector(yaw, centers, half) {
+  if (!centers) return normAng(yaw);
+  let best=centers[0], bd=Infinity;
+  for (const c of centers){ const d=Math.abs(angDiff(yaw,c)); if(d<bd){bd=d;best=c;} }
+  return normAng(best + clamp(angDiff(yaw,best), -half, half));
+}
+
+/**
+ * THE AIM SOLVER. Give it a world point the player is pointing at; it returns a
+ * firing solution that actually lands there.
+ *
+ * This replaces the old relative-mouse yaw accumulator, which snapped between
+ * sector wedges and could stall against the screen edge. Aim is now absolute:
+ * the reticle sits under the cursor and the launch angle is solved from physics.
+ */
+function aimAt(st, shooterId, px, pz, arcPref) {
+  const p = st.pieces[shooterId], w = weaponOf(p, st);
+  const [sx,,sz] = worldOf(p.sq);
+  const y0 = muzzleY(p);
+
+  let dx = px-sx, dz = pz-sz;
+  let d = Math.hypot(dx,dz);
+  if (d < 1e-4) { const f=yawDir(p.color==='w'?0:Math.PI); dx=f[0]; dz=f[1]; d=1; }
+
+  const yaw = clampYawToSector(yawOf(dx,dz), sectorCenters(p), w.sectorHalfDeg*D2R);
+  const maxR = isFinite(w.maxRange) ? w.maxRange : 11.5;
+  d = clamp(d, w.minRange || CONFIG.MIN_RANGE, maxR);
+
+  const [ux,uz] = yawDir(yaw);
+  const tx = sx+ux*d, tz = sz+uz*d;
+
+  // Aim low on a body, not the floor behind it, when a piece stands on the target
+  // square — low enough that anything closer in the line still blocks the shot.
+  const tsq = sqOfWorld(tx,tz);
+  const occ = tsq>=0 ? st.board[tsq] : null;
+  const ty = occ!=null ? CONFIG.HEIGHT[st.pieces[occ].type]*CONFIG.TARGET_BODY_FRACTION : 0;
+
+  let elev, arcUsed='flat';
+  if (w.hitscan) {
+    // A level sweep: the beam sits below every piece's shoulder, so it really does
+    // hit everything along the line — which is the whole point of the weapon.
+    elev = 0;
+  } else if (w.gravity===0) {
+    elev = Math.atan2(ty-y0, d);
+  } else {
+    const v=weaponSpeed(w), g=CONFIG.GRAVITY;
+    const k = g*d*d/(2*v*v);
+    const disc = d*d - 4*k*(k + ty - y0);
+    if (disc <= 0) { elev = 45*D2R; arcUsed='lob'; }
+    else {
+      const s = Math.sqrt(disc);
+      const lo = Math.atan((d-s)/(2*k)), hi = Math.atan((d+s)/(2*k));
+      const wantHigh = w.arcBand==='lob' || (w.arcBand==='both' && arcPref==='lob');
+      elev = wantHigh ? hi : lo;
+      arcUsed = wantHigh ? 'lob' : 'flat';
+    }
+  }
+  return { yaw, elev, dist:d, x:tx, y:ty, z:tz, arcUsed };
+}
+
+function obstaclesOf(st, excludeId) {
+  const list=[];
+  for (const id in st.pieces) {
+    if (id===excludeId) continue;
+    const p=st.pieces[id];
+    if (p.type==='k' && !CONFIG.KING.BLOCKS_PROJECTILES) continue;
+    const [x,,z]=worldOf(p.sq);
+    list.push({kind:'piece',id,x,z,h:CONFIG.HEIGHT[p.type],r:CONFIG.PIECE_RADIUS});
+  }
+  return list;
+}
+
+const OUT = 5.6;
+
+/** Resolve a shot's flight deterministically; the tracer is animated along it later. */
+function simulateShot(st, shooterId, yaw, elev, opts={}) {
+  const p = st.pieces[shooterId], w = weaponOf(p, st);
+  const [wx,,wz] = worldOf(p.sq);
+  const y0 = muzzleY(p);
+  const [dxu,dzu] = yawDir(yaw);
+  const ce = Math.cos(elev), se = Math.sin(elev);
+  const obstacles = opts.noCollide ? [] : obstaclesOf(st, shooterId);
+  const pts = [[wx,y0,wz]];
+  const hits = [];
+
+  if (w.hitscan) {
+    const step=0.07, seen=new Set();
+    let x=wx,y=y0,z=wz;
+    for (let d=step; d<=26; d+=step) {
+      x=wx+dxu*ce*d; y=y0+se*d; z=wz+dzu*ce*d;
+      pts.push([x,y,z]);
+      for (const ob of obstacles) {
+        if (ob.kind!=='piece' || seen.has(ob.id)) continue;
+        if (y<=ob.h && y>=0 && (x-ob.x)**2+(z-ob.z)**2 < ob.r*ob.r) { seen.add(ob.id); hits.push({id:ob.id}); }
+      }
+      if (y<=0) return {pts,impact:{x,y:0,z},hits,beam:true,ground:true};
+      if (Math.abs(x)>OUT||Math.abs(z)>OUT) return {pts,impact:{x,y,z},hits,beam:true,offBoard:true};
+    }
+    return {pts,impact:{x,y,z},hits,beam:true,offBoard:true};
+  }
+
+  const sp = weaponSpeed(w);
+  let vx=dxu*ce*sp, vy=se*sp, vz=dzu*ce*sp;
+  let x=wx,y=y0,z=wz,horiz=0;
+  const g = CONFIG.GRAVITY*w.gravity;
+  const dt = opts.dt || CONFIG.SIM_DT;
+
+  for (let t=0; t<CONFIG.SIM_MAX_TIME; t+=dt) {
+    const px2=x, pz2=z;
+    vy-=g*dt; x+=vx*dt; y+=vy*dt; z+=vz*dt;
+    horiz += Math.hypot(x-px2, z-pz2);
+    pts.push([x,y,z]);
+    // A mortar ignores cover by only becoming solid once it is falling.
+    if ((!w.ignoresCover || vy<0) && y>=0) {
+      for (const ob of obstacles) {
+        if (y<=ob.h && (x-ob.x)**2+(z-ob.z)**2 < ob.r*ob.r) {
+          if (ob.kind==='piece') hits.push({id:ob.id});
+          return {pts,impact:{x,y,z},hits,blockedBy:ob.kind};
+        }
+      }
+    }
+    if (y<=0){ pts[pts.length-1]=[x,0,z]; return {pts,impact:{x,y:0,z},hits,ground:true}; }
+    if (horiz>=w.maxRange) return {pts,impact:{x,y,z},hits,capped:true};
+    if (Math.abs(x)>OUT||Math.abs(z)>OUT) return {pts,impact:{x,y,z},hits,offBoard:true};
+  }
+  return {pts,impact:{x,y,z},hits,offBoard:true};
+}
+
+/**
+ * Every square this piece may shoot at, each pre-resolved so the UI can show
+ * up front whether the shot is CLEAR or BLOCKED — and by what. This is what makes
+ * "can I shoot past my own piece?" answerable without trial and error: switch to
+ * LOB and the blocked squares turn clear.
+ */
+function targetOptions(st, shooterId, arcPref) {
+  const p = st.pieces[shooterId]; if(!p) return [];
+  const w = weaponOf(p, st); if(!w) return [];
+  const centers = sectorCenters(p), half = w.sectorHalfDeg*D2R;
+  const maxR = isFinite(w.maxRange) ? w.maxRange : 11.5;
+  const [sx,,sz] = worldOf(p.sq);
+  const out = [];
+
+  for (let sq=0; sq<64; sq++) {
+    if (sq === p.sq) continue;
+    const [tx,,tz] = worldOf(sq);
+    const d = Math.hypot(tx-sx, tz-sz);
+    if (d < (w.minRange || CONFIG.MIN_RANGE) || d > maxR + 0.01) continue;
+    if (centers) {
+      const yaw = yawOf(tx-sx, tz-sz);
+      if (!centers.some(c => Math.abs(angDiff(yaw,c)) <= half + 1e-6)) continue;
+    }
+    /* A line piece shoots EXACTLY where it moves.
+       The aiming cone used to let a bishop snipe 25 squares that were not on any
+       of its diagonals. Players read that as "the bishop sees that square", so
+       when a shot cleared a blocker they expected check — and the rules, quite
+       correctly, disagreed, because no line had opened. Locking the gun to the
+       piece's real chess lines makes the board mean what it looks like:
+       clear the line, and it IS check. */
+    if (w.lineLocked) {
+      const df = fileOf(sq)-fileOf(p.sq), dr = rankOf(sq)-rankOf(p.sq);
+      const diag = Math.abs(df) === Math.abs(dr);
+      const ortho = (df === 0) !== (dr === 0);
+      if (w.sector==='diagonal'   && !diag)  continue;
+      if (w.sector==='orthogonal' && !ortho) continue;
+      if (w.sector==='pawnDiag') {
+        const fwd = p.color==='w' ? 1 : -1;
+        if (!(diag && dr*fwd > 0)) continue;
+      }
+    }
+    const sol = aimAt(st, shooterId, tx, tz, arcPref);
+    if (sqOfWorld(sol.x, sol.z) !== sq) continue;      // clamped elsewhere
+    const sim = simulateShot(st, shooterId, sol.yaw, sol.elev);
+
+    let status='clear', blockerId=null;
+    if (w.hitscan) {
+      status = 'clear';                                 // a beam is never blocked
+    } else if (sim.hits.length) {
+      const hit = st.pieces[sim.hits[0].id];
+      if (hit && hit.sq === sq) status='clear';
+      else { status='blocked'; blockerId = sim.hits[0].id; }
+    } else {
+      const isq = sqOfWorld(sim.impact.x, sim.impact.z);
+      if (isq !== sq) status='blocked';
+    }
+    out.push({ sq, sol, sim, status, blockerId });
+  }
+  return out;
+}
+
+/** Log a hit with its bonus breakdown, so damage is never mysterious. */
+function sayHit(st, src, prof, targetLabel, dealt) {
+  const bits = prof.mods.map(m=>`${m.name} ${m.text}`).join(', ');
+  say(st,'dmg',`${src} → ${targetLabel}: ${prof.base} base${bits?` · ${bits}`:''} = ${dealt}`);
+}
+
+/**
+ * What this shot WILL do, computed without firing it. The whole design is
+ * conditional damage bonuses, so hiding the number until after you commit was a
+ * design bug: this feeds the aim HUD so you decide with the number in front of you.
+ * Mirrors resolveShot exactly — there is a regression test asserting they agree.
+ */
+function shotPreview(st, shooterId, sim) {
+  const shooter = st.pieces[shooterId]; if(!shooter) return [];
+  const w = weaponOf(shooter, st); if(!w) return [];
+  const out = [], direct = new Set();
+
+  const push = (target, raw, note, prof) => {
+    if (!target) return;
+    let dmg = raw, blocked = null;
+    if (raw <= 0) { dmg = 0; blocked = 'none'; }          // e.g. bishop, wrong colour complex
+    else if (target.type==='k' && CONFIG.KING.IMMUNE_TO_PROJECTILES) { dmg = 0; blocked = 'immune'; }
+    else if (target.color===shooter.color) {
+      if (!st.settings.friendlyFire) { dmg = 0; blocked = 'ff-off'; }
+      else dmg = Math.max(1, Math.round(dmg * CONFIG.FRIENDLY_FIRE_MULT));
+    } else dmg = Math.max(1, Math.round(dmg));
+    out.push({ id:target.id, type:target.type, color:target.color, sq:target.sq,
+               hp:target.hp, maxHp:target.maxHp, raw, dmg, lethal: dmg >= target.hp,
+               friendly: target.color===shooter.color, blocked, note, prof });
+  };
+
+  if (w.prongs > 0) {
+    const R = CONFIG.BONUS.KNIGHT_PRONG_RADIUS;
+    Object.values(st.pieces)
+      .filter(q => q.color !== shooter.color && q.type !== 'k')
+      .map(q => { const [x,,z]=worldOf(q.sq);
+                  return { q, d: Math.hypot(x-sim.impact.x, z-sim.impact.z) }; })
+      .filter(o => o.d <= R).sort((a,b)=>a.d-b.d).slice(0, w.prongs)
+      .forEach((o,i) => {
+        const prof = damageProfile(st, shooter, { targetSq:o.q.sq });
+        if (i > 0) {
+          prof.mods.push({ name:'Split prong', text:'×'+CONFIG.BONUS.KNIGHT_PRONG_FALLOFF });
+          prof.total = Math.max(1, Math.round(prof.total * CONFIG.BONUS.KNIGHT_PRONG_FALLOFF));
+        }
+        push(o.q, prof.total, i > 0 ? 'split prong' : 'fork', prof);
+      });
+  } else {
+    let depth = 0;
+    for (const h of sim.hits) {
+      const t = st.pieces[h.id]; if(!t) continue;
+      direct.add(h.id);
+      const prof = damageProfile(st, shooter, { targetSq:t.sq });
+      if (w.hitscan && depth > 0) {
+        const f = Math.pow(CONFIG.BONUS.BISHOP_PIERCE_FALLOFF, depth);
+        prof.mods.push({ name:`Pierced ${depth} deep`, text:'×'+f.toFixed(2) });
+        prof.total = Math.max(1, Math.round(prof.total * f));
+      }
+      depth++;
+      push(t, prof.total, depth > 1 ? 'pierced' : null, prof);
+    }
+  }
+
+  if (w.splashSquares > 0 && w.splashDamage > 0) {
+    const isq = sqOfWorld(sim.impact.x, sim.impact.z);
+    if (isq >= 0) {
+      const f0 = fileOf(isq), r0 = rankOf(isq);
+      for (const id of Object.keys(st.pieces)) {
+        if (direct.has(id) && !CONFIG.SPLASH_HITS_DIRECT_TARGET) continue;
+        const q = st.pieces[id];
+        if (Math.max(Math.abs(fileOf(q.sq)-f0), Math.abs(rankOf(q.sq)-r0)) <= w.splashSquares)
+          push(q, w.splashDamage, 'splash', { base:w.splashDamage, mods:[], total:w.splashDamage });
+      }
+    }
+  }
+  return out;
+}
+
+function resolveShot(st, shooterId, sim) {
+  const shooter = st.pieces[shooterId]; if(!shooter) return;
+  const w = weaponOf(shooter, st); if(!w) return;
+  const src = `${SIDE[shooter.color]} ${NAME[shooter.type]} ${w.label}`;
+
+  /* A shot is ONE instant. Every number is computed against the board as it was
+     when the trigger was pulled, then applied — otherwise a beam's first kill
+     silently changes what its second hit does (losing the bishop-pair bonus, say),
+     which diverged from the damage the player was shown before firing. */
+  const hits = shotPreview(st, shooterId, sim);
+
+  if (w.prongs > 0) {
+    const forks = hits.filter(h => h.note==='fork' || h.note==='split prong');
+    if (!forks.length) say(st,'shot','Fork shot finds nothing in the blast area.');
+    else if (forks.length===1) say(st,'shot','Fork shot catches only one target.');
+    else say(st,'shot',`FORK — the shell splits and hits ${forks.length} pieces at once.`);
+  } else if (w.hitscan) {
+    for (const h of hits) {
+      if (h.note==='splash') continue;
+      const [hx,,hz] = worldOf(h.sq);
+      fx(st,'blast',{x:hx, y:CONFIG.HEIGHT[h.type]*0.5, z:hz, power:w.blast, color:w.tracer});
+    }
+  }
+
+  for (const h of hits) {
+    const t = st.pieces[h.id]; if (!t) continue;          // already dead this shot
+    const tl = `${SIDE[t.color]} ${NAME[t.type]} ${sqName(t.sq)}`;
+    if (h.raw <= 0) { say(st,'sys',`${src} → ${tl}: wrong colour complex, no damage.`); continue; }
+    const label2 = h.note==='splash' ? src+' splash' : src;
+    const dealt = applyDamage(st, h.id, h.raw,
+      { projectile:true, srcColor:shooter.color, source:label2, profile:h.prof });
+    if (dealt>0 && h.note!=='splash' && h.prof) sayHit(st, src, h.prof, tl, dealt);
+  }
+
+  // Firing is what puts a piece on cooldown; a rook battery burns both barrels.
+  // Re-read: the shooter can kill itself with its own splash or friendly fire.
+  const alive = st.pieces[shooterId];
+  if (alive) {
+    alive.cooldown = w.cooldown;
+    if (alive.type==='r') {
+      const partner = batteryPartner(st, alive);
+      if (partner) { partner.cooldown = CONFIG.WEAPONS.r.cooldown;
+        say(st,'sys',`Battery fired — ${label(partner)} also goes on cooldown.`); }
+    }
+  }
+
+  if (!sim.offBoard) {
+    fx(st,'blast',{x:sim.impact.x, y:Math.max(0.05,sim.impact.y), z:sim.impact.z,
+                   power:w.blast, color:w.tracer});
+    st.scorch.push({x:sim.impact.x, z:sim.impact.z, until:st.ply+CONFIG.SCORCH_PLIES,
+                    r:Math.max(0.32, w.splashSquares*0.7)});
+  }
+  if (!sim.hits.length && !w.prongs) {
+    const isq = sqOfWorld(sim.impact.x, sim.impact.z);
+    say(st,'shot', sim.offBoard || isq<0 ? 'Shot sails off the board.'
+      : `Shot lands on empty ground at ${sqName(isq)}.`);
+  }
+}
+
+/**
+ * CHECK IS A FREE SHOT. Every piece currently giving check fires its own weapon at
+ * the king for its own damage and goes on its own cooldown — so a second check
+ * from the same piece costs the attacker nothing and deals nothing. Perpetual
+ * check limits itself; no separate check-damage system, no special numbers.
+ * A discovered check fires two guns at once, because two pieces are checking.
+ */
+function fireCheckShots(st, color) {
+  if (!st.settings.checkShots) return;    // pure-chess mode: check costs no HP
+  const k = findKing(st, color); if(!k || st.gameOver) return;
+  const checkers = [];
+  for (const id in st.pieces) {
+    const p = st.pieces[id];
+    if (p.color === color || p.type === 'k') continue;
+    if (pieceMoves(st, id, { noCastle:true }).some(m => m.to === k.sq)) checkers.push(p);
+  }
+  if (!checkers.length) return;
+  say(st,'crip',`CHECK — ${checkers.length} piece${checkers.length>1?'s open fire':' opens fire'} on ${SIDE[color]}'s king.`);
+
+  for (const c of checkers) {
+    const w = weaponOf(c, st);
+    if (!w) { say(st,'sys',`${label(c)} gives check but has no weapon.`); continue; }
+    if (c.cooldown > 0) {
+      say(st,'sys',`${label(c)} is reloading (${c.cooldown}) — its check does no damage.`);
+      continue;
+    }
+    const prof = damageProfile(st, c, { targetSq:k.sq });
+    if (CONFIG.CHECK_SHOT_MULT !== 1 && prof.total > 0)
+      prof.mods.push({ name:'Check shot', text:'×'+CONFIG.CHECK_SHOT_MULT });
+    const dealt = Math.max(0, Math.round(prof.total * CONFIG.CHECK_SHOT_MULT));
+    c.cooldown = w.cooldown;
+    const [kx,,kz] = worldOf(k.sq);
+    fx(st,'blast',{ x:kx, y:CONFIG.HEIGHT.k*0.5, z:kz, power:w.blast, color:w.tracer });
+    if (dealt <= 0) { say(st,'sys',`${label(c)}'s check shot does nothing (${prof.mods.map(m=>m.name).join(', ')||'no damage'}).`); continue; }
+    sayHit(st, `${label(c)} check shot`, prof, `${SIDE[color]} king`, dealt);
+    applyDamage(st, k.id, dealt, { checkShot:true, srcColor:c.color, source:'Check shot' });
+    if (st.gameOver) return;
+  }
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  8. TURN FLOW
+═══════════════════════════════════════════════════════════════════════════*/
+
+/**
+ * Fire BEFORE you move — the move is what ends your turn, so there is no
+ * "end turn" button to forget. A piece that has fired cannot also be the piece
+ * you move.
+ */
+const canFire = (st,p) =>
+  !!p && !st.gameOver && p.color===st.turn && !!weaponOf(p, st) && p.cooldown===0 && gunsLive(st) &&
+  !st.turnState.firedId && !st.turnState.forfeited && !st.turnState.movedId;
+
+const canMovePiece = (st,p) =>
+  !!p && !st.gameOver && p.color===st.turn && !st.turnState.movedId && st.turnState.firedId!==p.id;
+
+/**
+ * Classic chess position key: layout + side to move + rights. Deliberately excludes
+ * HP and cooldowns — that is what lets it catch perpetual check, where the position
+ * repeats while the king's HP ticks down.
+ */
+function positionKey(st) {
+  let s = '';
+  for (let sq=0; sq<64; sq++) {
+    const id = st.board[sq];
+    s += id==null ? '.' : (st.pieces[id].color==='w'
+      ? st.pieces[id].type.toUpperCase() : st.pieces[id].type);
+  }
+  return s + '|' + st.turn + '|' + (st.castling.wk?'K':'') + (st.castling.wq?'Q':'')
+           + (st.castling.bk?'k':'') + (st.castling.bq?'q':'') + '|' + (st.ep==null?'-':st.ep);
+}
+
+function beginTurn(st) {
+  st.turnState = { movedId:null, firedId:null, forfeited:false, san:null };
+  const c = st.turn;
+  if (st.gameOver) return;
+  say(st,'sys',`— ${SIDE[c]} to move —`);
+
+  const key = positionKey(st);
+  st.posCounts[key] = (st.posCounts[key]||0) + 1;
+  if (st.posCounts[key] >= CONFIG.REPETITION_DRAW) {
+    endGame(st, null, `threefold repetition`); return;
+  }
+  if (st.halfmove >= CONFIG.FIFTY_MOVE_PLIES) {
+    endGame(st, null, `the fifty-move rule`); return;
+  }
+
+  // Draws are exactly chess draws: no stalemate bleed, no sudden-death timer.
+  const moves = legalMoves(st,c);
+  if (moves.length===0) {
+    if (inCheck(st,c)) endGame(st, other(c), 'checkmate');
+    else               endGame(st, null, 'stalemate');
+    return;
+  }
+  if (st.ply === CONFIG.GUNS_LIVE_AFTER_MOVES*2)
+    say(st,'sys',`GUNS LIVE — both sides have made ${CONFIG.GUNS_LIVE_AFTER_MOVES} moves. Weapons are hot.`);
+  if (kingArmed(st) && !st.kingsArmedAnnounced) {
+    st.kingsArmedAnnounced = true;
+    say(st,'sys',`The kings arm themselves — ${CONFIG.KING_ARMS_AT_PIECES} pieces or fewer a side. The king is a fighting piece.`);
+  }
+}
+
+function advanceTurn(st) {
+  if (st.gameOver) return;
+  const c = st.turn;
+
+  if (st.turnState.san) {
+    const opp = other(c);
+    let san = st.turnState.san;
+    if (inCheck(st,opp)) san += legalMoves(st,opp).length===0 ? '#' : '+';
+    const n = Math.floor(st.ply/2);
+    if (c==='w') st.moveList.push({n:n+1, w:san, b:null});
+    else if (st.moveList.length) st.moveList[st.moveList.length-1].b = san;
+    else st.moveList.push({n:n+1, w:'…', b:san});
+  } else if (c==='w') st.moveList.push({n:Math.floor(st.ply/2)+1, w:'—', b:null});
+  else if (st.moveList.length) st.moveList[st.moveList.length-1].b = '—';
+
+  // Cooldowns tick down on their owner's turn. That is the entire shot economy:
+  // no charge state, no activation — a piece is ready unless it is reloading.
+  for (const id of Object.keys(st.pieces)) {
+    const p = st.pieces[id];
+    if (p.color===c && p.cooldown>0) p.cooldown--;
+  }
+
+  // Check is resolved AFTER the tick, so a piece that just checked is genuinely
+  // reloading next time and a perpetual check pays nothing.
+  if (inCheck(st, other(c))) fireCheckShots(st, other(c));
+  if (st.gameOver) return;
+
+  st.ply++;
+  st.scorch = st.scorch.filter(s=>s.until>=st.ply);
+  if (st.banner && st.banner.until < st.ply) st.banner = null;
+  st.fx = [];
+  st.turn = other(c);
+  beginTurn(st);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  9. PIECE GEOMETRY
+  Turned (lathed) silhouettes rather than cylinders. Radii are absolute world
+  units and stay well inside a 1.0 square; heights are fractions of
+  CONFIG.HEIGHT so the visual always matches the collision cylinder.
+═══════════════════════════════════════════════════════════════════════════*/
+
+const PROFILE = {
+  p: [[0,0],[.235,0],[.245,.03],[.215,.07],[.130,.13],[.105,.33],[.150,.39],
+      [.115,.44],[.135,.52],[.165,.66],[.150,.80],[.100,.91],[.040,.985],[0,1]],
+  r: [[0,0],[.265,0],[.275,.03],[.235,.08],[.200,.16],[.190,.60],[.235,.66],
+      [.250,.72],[.250,1],[0,1]],
+  b: [[0,0],[.240,0],[.250,.028],[.205,.07],[.115,.14],[.095,.40],[.145,.455],
+      [.105,.505],[.125,.58],[.158,.70],[.148,.80],[.100,.885],[.055,.945],[0,.97]],
+  q: [[0,0],[.260,0],[.270,.025],[.225,.065],[.125,.13],[.105,.42],[.165,.475],
+      [.120,.525],[.145,.60],[.185,.70],[.200,.775],[.135,.815],[.155,.855],
+      [.090,.905],[.050,.955],[0,.97]],
+  k: [[0,0],[.260,0],[.270,.025],[.225,.065],[.125,.13],[.105,.42],[.165,.475],
+      [.120,.525],[.145,.60],[.190,.71],[.195,.79],[.130,.83],[.115,.875],[0,.885]],
+  n: [[0,0],[.245,0],[.255,.03],[.215,.08],[.135,.16],[.120,.34],[.150,.39],[.125,.42],[0,.43]],
+};
+
+/** Stylised horse head, extruded from a side profile — reads far better than boxes. */
+const KNIGHT_HEAD = (() => {
+  const pts = [[-.100,0],[-.145,.130],[-.135,.270],[-.085,.345],[-.105,.430],
+               [-.020,.345],[ .025,.420],[ .065,.325],[ .135,.275],[ .185,.185],
+               [ .195,.105],[ .135,.062],[ .062,.092],[ .012,.042],[ .045,0]];
+  const s = new THREE.Shape();
+  s.moveTo(pts[0][0], pts[0][1]);
+  for (let i=1;i<pts.length;i++) s.lineTo(pts[i][0], pts[i][1]);
+  s.closePath();
+  const g = new THREE.ExtrudeGeometry(s, { depth:0.15, curveSegments:2,
+    bevelEnabled:true, bevelSize:0.014, bevelThickness:0.014, bevelSegments:2 });
+  g.translate(0, 0, -0.075);
+  g.computeVertexNormals();
+  return g;
+})();
+
+const lathe = (type) => {
+  const h = CONFIG.HEIGHT[type];
+  const g = new THREE.LatheGeometry(PROFILE[type].map(([r,y]) => new THREE.Vector2(r, y*h)), 40);
+  g.computeVertexNormals();
+  return g;
+};
+
+const GEO = {
+  body: Object.fromEntries(TYPES.map(t => [t, lathe(t)])),
+  tile: new THREE.BoxGeometry(0.965, 0.055, 0.965),
+  ring: (i,o,s=64,st=0,l=Math.PI*2) => new THREE.RingGeometry(i,o,s,1,st,l),
+  batt: new THREE.BoxGeometry(0.085, 0.075, 0.085),
+  crossV: new THREE.BoxGeometry(0.048, 0.135, 0.048),
+  crossH: new THREE.BoxGeometry(0.115, 0.045, 0.045),
+  pip: new THREE.SphereGeometry(0.038, 10, 8),
+  bar: new THREE.PlaneGeometry(1, 1),
+  debris: new THREE.BoxGeometry(1, 1, 1),
+  ball: new THREE.SphereGeometry(1, 14, 12),
+};
+const ringCache = new Map();
+const flatRing = (i,o,s,st,l) => {
+  const k = [i,o,s,st,l].join('|');
+  if (!ringCache.has(k)) ringCache.set(k, GEO.ring(i,o,s,st,l));
+  return ringCache.get(k);
+};
+
+/*───────────────────────────────────────────────────────────────────────────
+  THEMES. Each palette drives both the HTML chrome (as CSS custom properties)
+  and the 3D scene. COL is deliberately mutable: every material reads COL.x at
+  render time, so swapping the palette and re-rendering repaints everything.
+───────────────────────────────────────────────────────────────────────────*/
+
+const THEMES = {
+  ivory: { label:'Ivory',
+    ui:{ bg:'#efe9dd', board:'#e7dfd0', panel:'#faf7f1', ink:'#2b2620', dim:'#7d7365',
+         faint:'#a89c8b', hair:'#e0d7c7', accent:'#c2662f', gold:'#c79418',
+         red:'#b3402e', green:'#5e8a4e' },
+    d3:{ wBody:'#fbf6ea', wTrim:'#ffffff', bBody:'#7b5f45', bTrim:'#a1815f',
+         tileL:'#f0e7d6', tileD:'#c3ab8c', frame:'#e2d6c0', bg:'#efe9dd',
+         metal:'#8d8578', coord:'#9c8a70' },
+    lit:{ sky:'#fffaf0', ground:'#c8b79c', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#ffe2c0' } },
+
+  slate: { label:'Slate',
+    ui:{ bg:'#eceef1', board:'#e2e5ea', panel:'#f8f9fb', ink:'#22262c', dim:'#6d747e',
+         faint:'#9aa1ab', hair:'#dcdfe5', accent:'#3f7d8c', gold:'#a8801f',
+         red:'#a8433c', green:'#4d7c56' },
+    d3:{ wBody:'#fcfdfe', wTrim:'#ffffff', bBody:'#565f6b', bTrim:'#7e8794',
+         tileL:'#e8ebef', tileD:'#a8b0ba', frame:'#d5d9df', bg:'#eceef1',
+         metal:'#7d848c', coord:'#8b939d' },
+    lit:{ sky:'#ffffff', ground:'#b9c0c9', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#d9e6f2' } },
+
+  walnut: { label:'Walnut',
+    ui:{ bg:'#241c16', board:'#2e241c', panel:'#2b221a', ink:'#f0e6d8', dim:'#a8977f',
+         faint:'#7a6a56', hair:'#3d3126', accent:'#d98f3f', gold:'#e0b24a',
+         red:'#d05c47', green:'#7faa5e' },
+    d3:{ wBody:'#efdfc4', wTrim:'#fff6e4', bBody:'#4a3122', bTrim:'#7a5537',
+         tileL:'#c9a878', tileD:'#6b4830', frame:'#2b1d13', bg:'#241c16',
+         metal:'#b8a58c', coord:'#a08a68' },
+    lit:{ sky:'#ffe9c8', ground:'#3a2c20', hemi:0.75, amb:0.30, dir:1.55, fill:0.45, fillCol:'#ffca86' } },
+
+  sage: { label:'Sage',
+    ui:{ bg:'#e9eee6', board:'#dfe6da', panel:'#f6f9f4', ink:'#232a22', dim:'#6b7566',
+         faint:'#98a292', hair:'#d8e0d2', accent:'#4f7a4a', gold:'#a8891c',
+         red:'#a8483a', green:'#3f7a4e' },
+    d3:{ wBody:'#fbfcf8', wTrim:'#ffffff', bBody:'#4d5c48', bTrim:'#74856d',
+         tileL:'#e6ede0', tileD:'#a3b39a', frame:'#cdd7c6', bg:'#e9eee6',
+         metal:'#7e8878', coord:'#8b9683' },
+    lit:{ sky:'#fbfff8', ground:'#bcc7b4', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#dcf0d4' } },
+
+  carbon: { label:'Carbon',
+    ui:{ bg:'#15171a', board:'#1d2024', panel:'#1a1d21', ink:'#e6e9ed', dim:'#98a0aa',
+         faint:'#6b727b', hair:'#2b2f35', accent:'#e08a3c', gold:'#d9b24a',
+         red:'#d95f4c', green:'#6fb07a' },
+    d3:{ wBody:'#e8ebef', wTrim:'#ffffff', bBody:'#3a4048', bTrim:'#5f6874',
+         tileL:'#8f97a1', tileD:'#43494f', frame:'#20242a', bg:'#15171a',
+         metal:'#9aa2ab', coord:'#79818b' },
+    lit:{ sky:'#dfe8f2', ground:'#22262b', hemi:0.70, amb:0.28, dir:1.65, fill:0.50, fillCol:'#9fc4e8' } },
+};
+const THEME_ORDER = ['ivory','slate','sage','walnut','carbon'];
+
+// mutable on purpose — see the note above
+const COL = { ...THEMES.ivory.d3, accent:'#c2662f', gold:'#c79418', red:'#b3402e', green:'#5e8a4e' };
+const LIT = { ...THEMES.ivory.lit };
+
+function applyTheme(name) {
+  const t = THEMES[name] || THEMES.ivory;
+  Object.assign(COL, t.d3, { accent:t.ui.accent, gold:t.ui.gold, red:t.ui.red, green:t.ui.green });
+  Object.assign(LIT, t.lit);
+  const root = document.documentElement;
+  for (const [k,v] of Object.entries(t.ui)) root.style.setProperty('--'+k, v);
+  root.style.setProperty('color-scheme', name==='walnut'||name==='carbon' ? 'dark' : 'light');
+  return name;
+}
+
+const hpColor = (f) => (f>0.5 ? '#5e8a4e' : f>0.25 ? '#c79418' : '#b3402e');
+const noPick = () => null;
+
+/*═══════════════════════════════════════════════════════════════════════════
+  10. BOARD
+═══════════════════════════════════════════════════════════════════════════*/
+
+function useCoordTexture(themeName) {
+  return useMemo(() => {
+    const S=1024, m=Math.round(S*0.0605);
+    const cv=document.createElement('canvas'); cv.width=cv.height=S;
+    const g=cv.getContext('2d');
+    g.clearRect(0,0,S,S);
+    g.fillStyle=COL.coord;
+    g.font=`500 ${Math.round(m*0.44)}px ui-sans-serif, system-ui, sans-serif`;
+    g.textAlign='center'; g.textBaseline='middle';
+    const inner=S-2*m, cell=inner/8;
+    for(let i=0;i<8;i++){
+      const cx=m+cell*(i+0.5);
+      g.fillText(FILES[i], cx, m*0.5); g.fillText(FILES[i], cx, S-m*0.5);
+      const cy=m+cell*(i+0.5);
+      g.fillText(String(8-i), m*0.5, cy); g.fillText(String(8-i), S-m*0.5, cy);
+    }
+    const t=new THREE.CanvasTexture(cv); t.colorSpace=THREE.SRGBColorSpace; return t;
+  }, [themeName]);
+}
+
+function Board({ onSquare, onTileHover, hints, selSq, lastMove, themeName }) {
+  const coord = useCoordTexture(themeName);
+  const tiles = [];
+  for (let sq=0; sq<64; sq++) {
+    const [x,,z]=worldOf(sq);
+    const dark=(fileOf(sq)+rankOf(sq))%2===0;
+    const lit = lastMove && (sq===lastMove.from||sq===lastMove.to);
+    tiles.push(
+      <mesh key={sq} geometry={GEO.tile} position={[x,-0.028,z]}
+            onClick={(e)=>{e.stopPropagation(); onSquare(sq);}}
+            onPointerOver={(e)=>{e.stopPropagation(); onTileHover && onTileHover(sq);}}>
+        <meshStandardMaterial color={dark?COL.tileD:COL.tileL} roughness={0.95} metalness={0.03}
+          emissive={selSq===sq?COL.accent:lit?'#c79418':'#000'}
+          emissiveIntensity={selSq===sq?0.30:lit?0.18:0} />
+      </mesh>);
+  }
+  return (
+    <group>
+      <mesh position={[0,-0.18,0]}>
+        <boxGeometry args={[9.5,0.28,9.5]} />
+        <meshStandardMaterial color={COL.frame} roughness={0.98} />
+      </mesh>
+      {/* must sit above the frame's top face (y = −0.04) or the labels vanish inside it */}
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,-0.028,0]} raycast={noPick} renderOrder={1}>
+        <planeGeometry args={[9.5,9.5]} />
+        <meshBasicMaterial map={coord} transparent depthWrite={false} />
+      </mesh>
+      {tiles}
+      {hints.map(h=>{
+        const [x,,z]=worldOf(h.to);
+        return (
+          <mesh key={'h'+h.to} rotation={[-Math.PI/2,0,0]} position={[x,0.011,z]} renderOrder={3}
+                onClick={(e)=>{e.stopPropagation(); onSquare(h.to);}}>
+            {h.capture!=null ? <ringGeometry args={[0.33,0.42,30]} /> : <circleGeometry args={[0.115,20]} />}
+            <meshBasicMaterial color={h.capture!=null?COL.red:COL.accent} transparent
+              opacity={h.capture!=null?0.85:0.55} depthWrite={false} />
+          </mesh>);
+      })}
+    </group>);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  11. PIECES
+═══════════════════════════════════════════════════════════════════════════*/
+
+function Billboard({ children, position }) {
+  const ref = useRef();
+  useFrame(({camera}) => { if(ref.current) ref.current.quaternion.copy(camera.quaternion); });
+  return <group ref={ref} position={position}>{children}</group>;
+}
+
+/** Slim bar, shown only when it carries information: damaged, hovered or selected. */
+function HealthBar({ p, force }) {
+  const f = clamp(p.hp/p.maxHp, 0, 1);
+  if (f >= 1 && !force) return null;
+  const W=0.42, H=0.048;
+  return (
+    <Billboard position={[0, CONFIG.HEIGHT[p.type]+0.26, 0]}>
+      <mesh geometry={GEO.bar} raycast={noPick} renderOrder={20} scale={[W+0.035,H+0.032,1]}>
+        <meshBasicMaterial color="#05070a" transparent opacity={0.8} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh geometry={GEO.bar} raycast={noPick} renderOrder={21}
+            position={[-W*(1-f)/2,0,0]} scale={[Math.max(0.001,W*f),H,1]}>
+        <meshBasicMaterial color={hpColor(f)} transparent depthTest={false} depthWrite={false} />
+      </mesh>
+    </Billboard>);
+}
+
+/** Under-piece ring: accent = loaded, gold arc = reloading, faint = no weapon yet. */
+function StatusRing({ p, game }) {
+  const w = weaponOf(p, game);
+  const cooling = p.cooldown>0;
+  const ready = !!w && !cooling;
+  if (!w && !cooling) return null;
+  const frac = cooling ? 1 - p.cooldown/(w?w.cooldown:CONFIG.WEAPONS[p.type].cooldown) : 1;
+  const geo = cooling
+    ? flatRing(0.315,0.365,48, Math.PI/2, Math.max(0.001, frac*Math.PI*2))
+    : flatRing(0.315,0.365,48, 0, Math.PI*2);
+  const cdTex = cooling ? textTex(String(p.cooldown), '#96700e') : null;
+  return (
+    <>
+      {cooling && (
+        <mesh geometry={flatRing(0.315,0.365,48,0,Math.PI*2)} raycast={noPick} renderOrder={2}
+              rotation={[-Math.PI/2,0,0]} position={[0,0.013,0]}>
+          <meshBasicMaterial color="#cbbda4" transparent opacity={0.85} depthWrite={false} />
+        </mesh>)}
+      <mesh geometry={geo} raycast={noPick} renderOrder={3} rotation={[-Math.PI/2,0,0]} position={[0,0.015,0]}>
+        <meshBasicMaterial color={cooling?COL.gold:ready?COL.accent:'#b9a98e'}
+          transparent opacity={cooling?0.95:ready?0.9:0.45} depthWrite={false} />
+      </mesh>
+      {cdTex && (
+        <sprite position={[0.34, 0.16, 0.34]} scale={[0.30,0.11,1]} renderOrder={33}>
+          <spriteMaterial map={cdTex} transparent depthTest={false} depthWrite={false} />
+        </sprite>)}
+    </>);
+}
+
+/**
+ * Crests read as part of the piece, so they use the body colour. Only the small
+ * jewellery (crown pips, king's cross) picks up the lighter trim.
+ */
+/*───────────────────────────────────────────────────────────────────────────
+  WEAPONS YOU CAN SEE. Every piece visibly carries the gun it actually fires,
+  and the barrel swings to the locked target while aiming. Purely cosmetic —
+  CONFIG.HEIGHT and PIECE_RADIUS (the collision model) are untouched, so
+  ballistics and cover are unchanged.
+───────────────────────────────────────────────────────────────────────────*/
+
+const WG = {
+  // Chunky on purpose: at normal play distance anything thinner than ~0.05 world
+  // units reads as a speck rather than a gun.
+  barrelL:  new THREE.CylinderGeometry(0.050, 0.056, 0.58, 14),   // rook railgun
+  barrelM:  new THREE.CylinderGeometry(0.046, 0.052, 0.48, 14),   // queen howitzer
+  barrelS:  new THREE.CylinderGeometry(0.030, 0.033, 0.30, 12),   // pawn / king
+  mortar:   new THREE.CylinderGeometry(0.078, 0.086, 0.34, 16),   // knight tube
+  lens:     new THREE.CylinderGeometry(0.070, 0.046, 0.075, 18),  // bishop optic
+  scope:    new THREE.CylinderGeometry(0.028, 0.028, 0.44, 12),   // bishop rail
+  muzzle:   new THREE.CylinderGeometry(0.066, 0.066, 0.062, 14),
+  mount:    new THREE.BoxGeometry(0.155, 0.085, 0.155),
+  mag:      new THREE.BoxGeometry(0.082, 0.125, 0.05),
+  strut:    new THREE.CylinderGeometry(0.019, 0.019, 0.22, 8),
+  bead:     new THREE.SphereGeometry(0.034, 12, 10),
+};
+
+/** The gun a piece carries, mounted and aimed. */
+function PieceWeapon({ p, game, aimYaw }) {
+  const w = weaponOf(p, game);
+  if (!w) return null;                    // unarmed king shows nothing
+  const h = CONFIG.HEIGHT[p.type];
+  const gun = <meshStandardMaterial color={COL.metal} roughness={0.34} metalness={0.72} />;
+  const hot = <meshStandardMaterial color={w.tracer} roughness={0.3} metalness={0.4}
+                emissive={w.tracer} emissiveIntensity={0.55} />;
+
+  // Idle bearing: forward for most, the near diagonal for the pawn/bishop.
+  const fwd = p.color === 'w' ? 0 : Math.PI;
+  const idle = (p.type === 'p' || p.type === 'b') ? fwd + Math.PI/4 : fwd;
+  const yaw = aimYaw != null ? aimYaw : idle;
+
+  // `yaw` is measured from −z, but a group's Y rotation is measured from +z,
+  // so the sign flips. Barrels are modelled along −z after a +90° X tilt.
+  return (
+    <group rotation={[0, -yaw, 0]}>
+      {p.type === 'p' && (
+        <group position={[0, h*0.80, 0]}>
+          <mesh geometry={WG.mount} scale={[0.8,0.75,0.8]}>{gun}</mesh>
+          {[-0.045, 0.045].map((dx,i)=>(
+            <mesh key={i} geometry={WG.barrelS} position={[dx, 0.015, -0.17]}
+                  rotation={[Math.PI/2,0,0]}>{gun}</mesh>))}
+          <mesh geometry={WG.bead} position={[0, 0.015, -0.30]} scale={[0.7,0.7,0.7]}>{hot}</mesh>
+          <mesh geometry={WG.mag} position={[0,-0.075,0.06]} rotation={[0.3,0,0]}>{gun}</mesh>
+        </group>)}
+
+      {p.type === 'n' && (
+        <group position={[0, h*0.62, 0]}>
+          {/* mortar tube, canted up — it only ever lobs */}
+          <mesh geometry={WG.mortar} position={[0, 0.13, -0.07]} rotation={[-0.95,0,0]}>{gun}</mesh>
+          <mesh geometry={WG.muzzle} position={[0, 0.26, -0.16]} rotation={[-0.95,0,0]}>{hot}</mesh>
+          <mesh geometry={WG.strut} position={[-0.10,-0.03,0.07]} rotation={[0.4,0,-0.35]}>{gun}</mesh>
+          <mesh geometry={WG.strut} position={[ 0.10,-0.03,0.07]} rotation={[0.4,0, 0.35]}>{gun}</mesh>
+        </group>)}
+
+      {p.type === 'b' && (
+        <group position={[0, h*0.60, 0]}>
+          {/* long sniper rail + glowing optic */}
+          <mesh geometry={WG.scope} position={[0, 0.04, -0.20]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
+          <mesh geometry={WG.lens} position={[0, 0.04, -0.44]} rotation={[Math.PI/2,0,0]}>{hot}</mesh>
+          <mesh geometry={WG.bead} position={[0, 0.125, -0.03]}>{hot}</mesh>
+          <mesh geometry={WG.mount} scale={[0.65,0.6,0.95]} position={[0,-0.01,-0.02]}>{gun}</mesh>
+        </group>)}
+
+      {p.type === 'r' && (
+        <group position={[0, h*0.70, 0]}>
+          {/* heavy railgun through the tower */}
+          <mesh geometry={WG.mount} position={[0,0,0.03]}>{gun}</mesh>
+          <mesh geometry={WG.barrelL} position={[0, 0.005, -0.30]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
+          <mesh geometry={WG.muzzle} position={[0, 0.005, -0.60]} rotation={[Math.PI/2,0,0]}>{hot}</mesh>
+          {[-0.075,0.075].map((dx,i)=>(
+            <mesh key={i} geometry={WG.strut} position={[dx,0.005,-0.18]}
+                  rotation={[Math.PI/2,0,0]} scale={[1,1.3,1]}>{gun}</mesh>))}
+        </group>)}
+
+      {p.type === 'q' && (
+        <group position={[0, h*0.66, 0]}>
+          {/* howitzer on a turret ring, elevated */}
+          <mesh geometry={WG.mount} scale={[1.25,0.9,1.25]}>{gun}</mesh>
+          <mesh geometry={WG.barrelM} position={[0, 0.14, -0.20]} rotation={[-0.42,0,0]}>{gun}</mesh>
+          <mesh geometry={WG.muzzle} position={[0, 0.245, -0.40]} rotation={[-0.42,0,0]}>{hot}</mesh>
+          <mesh geometry={WG.strut} position={[0,-0.03,0.11]} rotation={[0.55,0,0]}>{gun}</mesh>
+        </group>)}
+
+      {p.type === 'k' && (
+        <group position={[0, h*0.52, 0]}>
+          {/* short last-stand piece, only exists once he is armed */}
+          <mesh geometry={WG.mount} scale={[0.75,0.65,0.75]}>{gun}</mesh>
+          <mesh geometry={WG.barrelS} position={[0, 0.02, -0.17]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
+          <mesh geometry={WG.bead} position={[0, 0.02, -0.32]}>{hot}</mesh>
+        </group>)}
+    </group>);
+}
+
+function PieceCrest({ p, body, trim }) {
+  const h = CONFIG.HEIGHT[p.type];
+  const bodyMat = <meshStandardMaterial color={body} roughness={p.color==='w'?0.44:0.40}
+                    metalness={p.color==='w'?0.06:0.16} />;
+  const trimMat = <meshStandardMaterial color={trim} roughness={0.34} metalness={0.34} />;
+
+  if (p.type==='r') return (
+    <group>{[0,1,2,3,4,5].map(i=>{
+      const a=i/6*Math.PI*2;
+      return <mesh key={i} geometry={GEO.batt}
+        position={[Math.cos(a)*0.178, h+0.028, Math.sin(a)*0.178]} rotation={[0,-a,0]}>{bodyMat}</mesh>;})}
+    </group>);
+
+  if (p.type==='q') return (
+    <group>{[0,1,2,3,4,5,6].map(i=>{
+      const a=i/7*Math.PI*2;
+      return <mesh key={i} geometry={GEO.pip}
+        position={[Math.cos(a)*0.182, h*0.80, Math.sin(a)*0.182]}>{trimMat}</mesh>;})}
+    </group>);
+
+  if (p.type==='k') return (
+    <group position={[0, h*0.885+0.058, 0]}>
+      <mesh geometry={GEO.crossV}>{trimMat}</mesh>
+      <mesh geometry={GEO.crossH} position={[0,0.024,0]}>{trimMat}</mesh>
+    </group>);
+
+  if (p.type==='n') {
+    // The head is only readable in profile, and both players sit down the z axis —
+    // so the nose points along x (White right, Black left), never at the camera.
+    return (
+      <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]}
+            rotation={[0, p.color==='w' ? 0 : Math.PI, 0]}>{bodyMat}</mesh>);
+  }
+  if (p.type==='b') return <mesh geometry={GEO.pip} position={[0, h*0.99, 0]}>{trimMat}</mesh>;
+  return null;
+}
+
+function PieceMesh({ p, game, selected, hovered, eligible, dim, aimYaw, onPick, onHover }) {
+  const [x,,z] = worldOf(p.sq);
+  const body = p.color==='w' ? COL.wBody : COL.bBody;
+  const trim = p.color==='w' ? COL.wTrim : COL.bTrim;
+  const glow = selected ? COL.accent : eligible ? '#8a4418' : '#000';
+  return (
+    <group position={[x,0,z]}
+      onClick={(e)=>{e.stopPropagation(); onPick(p.id);}}
+      onPointerOver={(e)=>{e.stopPropagation(); onHover(p.id,e);}}
+      onPointerOut={(e)=>{e.stopPropagation(); onHover(null,e);}}>
+      <mesh geometry={GEO.body[p.type]}>
+        <meshStandardMaterial color={body} roughness={p.color==='w'?0.44:0.40}
+          metalness={p.color==='w'?0.06:0.16}
+          transparent={dim} opacity={dim?0.30:1}
+          emissive={glow} emissiveIntensity={selected?0.5:eligible?0.42:0} />
+      </mesh>
+      <PieceCrest p={p} body={body} trim={trim} />
+      <PieceWeapon p={p} game={game} aimYaw={aimYaw} />
+      <StatusRing p={p} game={game} />
+      {selected && (
+        <mesh geometry={flatRing(0.40,0.455,48,0,Math.PI*2)} raycast={noPick} renderOrder={4}
+              rotation={[-Math.PI/2,0,0]} position={[0,0.018,0]}>
+          <meshBasicMaterial color={COL.accent} transparent opacity={0.9} depthWrite={false} />
+        </mesh>)}
+      <HealthBar p={p} force={selected||hovered} />
+    </group>);
+}
+
+const Scorch = ({ s }) => (
+  <mesh rotation={[-Math.PI/2,0,0]} position={[s.x,0.009,s.z]} raycast={noPick} renderOrder={1}>
+    <circleGeometry args={[s.r,26]} />
+    <meshBasicMaterial color="#7a6046" transparent opacity={0.30} depthWrite={false} />
+  </mesh>);
+
+/*═══════════════════════════════════════════════════════════════════════════
+  12. CINEMATICS — muzzle flash, tracer, blast, damage numbers
+═══════════════════════════════════════════════════════════════════════════*/
+
+/** Cached canvas-texture sprites for floating damage numbers. */
+const textTex = (() => {
+  const cache = new Map();
+  return (text, color) => {
+    const key = text+'|'+color;
+    if (cache.has(key)) return cache.get(key);
+    const W=256,H=96, cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+    const g=cv.getContext('2d');
+    g.font='700 62px ui-sans-serif, system-ui, sans-serif';
+    g.textAlign='center'; g.textBaseline='middle';
+    // light board → pale halo behind dark text, not the other way round
+    g.lineWidth=10; g.strokeStyle='rgba(255,252,245,.95)';
+    g.strokeText(text,W/2,H/2);
+    g.fillStyle=color; g.fillText(text,W/2,H/2);
+    const t=new THREE.CanvasTexture(cv); t.colorSpace=THREE.SRGBColorSpace;
+    cache.set(key,t); return t;
+  };
+})();
+
+function Floater({ e }) {
+  const ref = useRef(); const t = useRef(0);
+  const tex = useMemo(()=>textTex(e.text, e.color), [e.text, e.color]);
+  useFrame((_,dt)=>{
+    t.current += dt;
+    const k = t.current/CONFIG.FX.floaterTime;
+    if (!ref.current) return;
+    if (k>=1){ ref.current.visible=false; return; }
+    ref.current.position.set(e.x, e.y + CONFIG.FX.floaterRise*k, e.z);
+    ref.current.material.opacity = k<0.65 ? 1 : 1-(k-0.65)/0.35;
+  });
+  return (
+    <sprite ref={ref} position={[e.x,e.y,e.z]} scale={[0.62,0.23,1]} renderOrder={40}>
+      <spriteMaterial map={tex} transparent depthTest={false} depthWrite={false} />
+    </sprite>);
+}
+
+function MuzzleFlash({ e }) {
+  const ref=useRef(), lt=useRef(); const t=useRef(0);
+  useFrame((_,dt)=>{
+    t.current+=dt;
+    const k=clamp(1-t.current/CONFIG.FX.muzzleTime,0,1);
+    if(ref.current){ ref.current.visible=k>0; ref.current.scale.setScalar(0.10+0.22*(1-k)); ref.current.material.opacity=k; }
+    if(lt.current) lt.current.intensity = 6*k;
+  });
+  return (
+    <group position={[e.x,e.y,e.z]}>
+      <mesh ref={ref} geometry={GEO.ball} raycast={noPick} renderOrder={25}>
+        <meshBasicMaterial color={e.color} transparent depthWrite={false} />
+      </mesh>
+      <pointLight ref={lt} color={e.color} distance={3.4} intensity={6} />
+    </group>);
+}
+
+/** Impact: hot flash, expanding ground shockwave, tumbling debris, light pop, screen shake. */
+function Blast({ e, shakeRef }) {
+  const flash=useRef(), wave=useRef(), ring=useRef(), lt=useRef();
+  const group=useRef();
+  const t=useRef(0), kicked=useRef(false);
+  const bits = useMemo(()=>{
+    let s=(e.id*2654435761)>>>0;
+    const rnd=()=>((s=(s*1103515245+12345)>>>0)/4294967296);
+    return Array.from({length:CONFIG.FX.debrisCount},()=>{
+      const a=rnd()*Math.PI*2, up=0.9+rnd()*2.4, sp=1.1+rnd()*2.6;
+      return { v:[Math.cos(a)*sp, up, Math.sin(a)*sp], s:0.035+rnd()*0.055, spin:(rnd()-0.5)*14 };
+    });
+  },[e.id]);
+  const bitRefs = useRef([]);
+
+  useFrame((_,dt)=>{
+    if (!kicked.current) {
+      kicked.current = true;
+      if (shakeRef) shakeRef.current.amp =
+        Math.min(CONFIG.FX.shakeMax, shakeRef.current.amp + CONFIG.FX.shakeOnHit*e.power);
+    }
+    t.current += dt;
+    const T=t.current, P=e.power;
+
+    const fk = clamp(1-T/CONFIG.FX.flashTime,0,1);
+    if (flash.current){ flash.current.visible=fk>0;
+      flash.current.scale.setScalar(P*(0.16+0.30*(1-fk)));
+      flash.current.material.opacity=fk; }
+    if (lt.current) lt.current.intensity = CONFIG.FX.impactLight*P*fk;
+
+    const wk = clamp(1-T/CONFIG.FX.waveTime,0,1);
+    if (wave.current){ wave.current.visible=wk>0;
+      const s=P*(0.22+0.85*(1-wk)); wave.current.scale.set(s,s,s);
+      wave.current.material.opacity=wk*0.30; }
+    if (ring.current){ ring.current.visible=wk>0;
+      const s=P*(0.18+0.75*(1-wk)); ring.current.scale.set(s,s,s);
+      ring.current.material.opacity=wk*0.8; }
+
+    const dk = T/CONFIG.FX.debrisTime;
+    bitRefs.current.forEach((m,i)=>{
+      if(!m) return;
+      if (dk>=1){ m.visible=false; return; }
+      const b=bits[i], tt=T;
+      m.position.set(e.x+b.v[0]*tt, Math.max(0.02, e.y+b.v[1]*tt-0.5*11*tt*tt), e.z+b.v[2]*tt);
+      m.rotation.set(b.spin*tt, b.spin*0.7*tt, b.spin*0.4*tt);
+      m.material.opacity = dk<0.6?1:1-(dk-0.6)/0.4;
+    });
+  });
+
+  /* On a light board additive blending just turns everything white, so these use
+     normal blending: a saturated fireball, then a dark dust ring and smoke puff. */
+  return (
+    <group ref={group}>
+      <mesh ref={flash} geometry={GEO.ball} position={[e.x,e.y,e.z]} raycast={noPick} renderOrder={26}>
+        <meshBasicMaterial color="#ff8a2b" transparent depthWrite={false} />
+      </mesh>
+      <mesh ref={wave} geometry={GEO.ball} position={[e.x,e.y,e.z]} raycast={noPick} renderOrder={24}>
+        <meshBasicMaterial color="#9a7f63" transparent depthWrite={false} />
+      </mesh>
+      <mesh ref={ring} geometry={flatRing(0.72,1,64,0,Math.PI*2)} rotation={[-Math.PI/2,0,0]}
+            position={[e.x,0.02,e.z]} raycast={noPick} renderOrder={25}>
+        <meshBasicMaterial color="#7a5f45" transparent depthWrite={false} />
+      </mesh>
+      <pointLight ref={lt} position={[e.x,e.y+0.25,e.z]} color="#ffa64d" distance={6} intensity={0} />
+      {bits.map((b,i)=>(
+        <mesh key={i} ref={m=>bitRefs.current[i]=m} geometry={GEO.debris} raycast={noPick}
+              position={[e.x,e.y,e.z]} scale={[b.s,b.s,b.s]}>
+          <meshStandardMaterial color="#6f5741" roughness={0.95} transparent />
+        </mesh>))}
+    </group>);
+}
+
+/** Ballistic shell: bright core, additive halo, fading tracer, travelling light. */
+function Projectile({ shot, onDone, shellRef }) {
+  const head=useRef(), halo=useRef(), lt=useRef();
+  const t=useRef(0), done=useRef(false);
+  const line = useMemo(()=>{
+    const geo=new THREE.BufferGeometry();
+    const arr=new Float32Array(shot.pts.length*3);
+    shot.pts.forEach((p,i)=>{arr[i*3]=p[0];arr[i*3+1]=p[1];arr[i*3+2]=p[2];});
+    geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
+    geo.setDrawRange(0,0);
+    const l=new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color:shot.color, transparent:true, opacity:0.9 }));
+    l.frustumCulled=false; l.renderOrder=23; return l;
+  },[shot]);
+
+  useFrame((_,dt)=>{
+    if (done.current) return;
+    t.current += dt;
+    const u = clamp(t.current/shot.duration,0,1);
+    const idx = Math.min(shot.pts.length-1, Math.round(u*(shot.pts.length-1)));
+    const p = shot.pts[idx];
+    if (head.current) head.current.position.set(p[0],p[1],p[2]);
+    if (halo.current){ halo.current.position.set(p[0],p[1],p[2]);
+      halo.current.material.opacity = 0.55+0.25*Math.sin(t.current*40); }
+    if (lt.current) lt.current.position.set(p[0],p[1],p[2]);
+    if (shellRef) shellRef.current = p;
+    const start = Math.max(0, idx-CONFIG.TRACER_POINTS);
+    line.geometry.setDrawRange(start, idx-start+1);
+    if (u>=1){ done.current=true; if(shellRef) shellRef.current=null; onDone(); }
+  });
+
+  return (
+    <>
+      <primitive object={line} />
+      <mesh ref={halo} geometry={GEO.ball} position={shot.pts[0]} raycast={noPick} renderOrder={24}
+            scale={[shot.size*2.4,shot.size*2.4,shot.size*2.4]}>
+        <meshBasicMaterial color={shot.color} transparent opacity={0.28} depthWrite={false} />
+      </mesh>
+      <mesh ref={head} geometry={GEO.ball} position={shot.pts[0]} raycast={noPick} renderOrder={25}
+            scale={[shot.size,shot.size,shot.size]}>
+        <meshBasicMaterial color={shot.color} />
+      </mesh>
+      <pointLight ref={lt} color={shot.color} distance={3.2} intensity={CONFIG.FX.tracerLight} />
+    </>);
+}
+
+/** Hitscan beam drawn as a stretched tube — WebGL ignores line width. */
+function Beam({ shot, onDone }) {
+  const t=useRef(0), done=useRef(false), core=useRef(), glow=useRef();
+  const { mid, quat, len } = useMemo(()=>{
+    const a=new THREE.Vector3(...shot.pts[0]);
+    const b=new THREE.Vector3(...shot.pts[shot.pts.length-1]);
+    const d=b.clone().sub(a);
+    return { mid:a.clone().addScaledVector(d,0.5),
+             quat:new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), d.clone().normalize()),
+             len:Math.max(0.01,d.length()) };
+  },[shot]);
+  useFrame((_,dt)=>{
+    if (done.current) return;
+    t.current+=dt;
+    const k=clamp(1-t.current/CONFIG.BEAM_LIFETIME_S,0,1);
+    if(core.current) core.current.material.opacity=k;
+    if(glow.current){ glow.current.material.opacity=k*0.35; glow.current.scale.set(1+(1-k)*1.6,1,1+(1-k)*1.6); }
+    if(t.current>=CONFIG.BEAM_LIFETIME_S){ done.current=true; onDone(); }
+  });
+  return (
+    <group position={mid} quaternion={quat}>
+      <mesh ref={glow} raycast={noPick} renderOrder={23}>
+        <cylinderGeometry args={[0.10,0.10,len,12,1,true]} />
+        <meshBasicMaterial color={shot.color} transparent opacity={0.22}
+          depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={core} raycast={noPick} renderOrder={24}>
+        <cylinderGeometry args={[0.030,0.030,len,10,1,true]} />
+        <meshBasicMaterial color={shot.color} transparent
+          depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  13. AIMING OVERLAY  (absolute, cursor-driven — no accumulation, never stalls)
+═══════════════════════════════════════════════════════════════════════════*/
+
+/**
+ * Aim overlay. Every square the weapon can reach is marked, and pre-resolved:
+ * a filled dot means the shot gets through, a hollow cross means something is in
+ * the way. Click one to lock it. No free-aim, no first-person view — where you
+ * may shoot is simply drawn on the board.
+ */
+function TargetOverlay({ game, shooterId, targets, aimSq, hoverSq, assist }) {
+  const spin = useRef();
+  useFrame((_,dt)=>{ if (spin.current) spin.current.rotation.z += dt*0.5; });
+
+  const locked = aimSq!=null ? targets.find(t=>t.sq===aimSq) : null;
+  const shooter = game.pieces[shooterId];
+  const isBeam = !!(weaponOf(shooter, game)||{}).hitscan;
+
+  // assist mode: the true trajectory of the locked shot
+  const arc = useMemo(()=>{
+    if (!assist || !locked) return null;
+    const pts = locked.sim.pts;
+    const n = Math.min(400, pts.length), stride = pts.length/n;
+    const v = [];
+    for (let i=0;i<n;i++){
+      const s=pts[Math.min(pts.length-1, Math.floor(i*stride))];
+      v.push(new THREE.Vector3(s[0],s[1],s[2]));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(v);
+    const l = new THREE.Line(geo, new THREE.LineDashedMaterial({
+      color:COL.accent, transparent:true, opacity:0.7, dashSize:0.15, gapSize:0.11 }));
+    l.computeLineDistances(); l.frustumCulled=false; l.renderOrder=22;
+    return l;
+  },[assist, locked]);
+
+  return (
+    <>
+      {targets.map(t=>{
+        const [x,,z]=worldOf(t.sq);
+        const on = t.sq===aimSq, hov = t.sq===hoverSq;
+        const clear = t.status==='clear';
+        return (
+          <group key={t.sq} position={[x,0.020,z]}>
+            <mesh rotation={[-Math.PI/2,0,0]} raycast={noPick} renderOrder={5}>
+              <circleGeometry args={[0.40,24]} />
+              <meshBasicMaterial color={clear?COL.accent:'#8a7a66'} transparent
+                opacity={on?0.34:hov?0.24:0.11} depthWrite={false} />
+            </mesh>
+            {clear ? (
+              <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.002,0]} raycast={noPick} renderOrder={6}>
+                <circleGeometry args={[0.085,16]} />
+                <meshBasicMaterial color={COL.accent} transparent opacity={0.95} depthWrite={false} />
+              </mesh>
+            ) : (
+              <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.002,0]} raycast={noPick} renderOrder={6}>
+                <ringGeometry args={[0.145,0.185,4]} />
+                <meshBasicMaterial color="#8a7a66" transparent opacity={0.8} depthWrite={false} />
+              </mesh>
+            )}
+          </group>);
+      })}
+
+      {/* the blocker for the locked shot, called out on the board */}
+      {locked && locked.blockerId && game.pieces[locked.blockerId] && (()=>{
+        const [bx,,bz]=worldOf(game.pieces[locked.blockerId].sq);
+        return (
+          <mesh position={[bx,0.023,bz]} rotation={[-Math.PI/2,0,0]} raycast={noPick} renderOrder={8}>
+            <ringGeometry args={[0.42,0.48,32]} />
+            <meshBasicMaterial color={COL.red} transparent opacity={0.95} depthWrite={false} />
+          </mesh>);
+      })()}
+
+      {/* locked reticle */}
+      {locked && (()=>{
+        const [x,,z]=worldOf(locked.sq);
+        return (
+          <group position={[x,0.030,z]}>
+            <mesh ref={spin} rotation={[-Math.PI/2,0,0]} raycast={noPick} renderOrder={30}>
+              <ringGeometry args={[0.30,0.365,4]} />
+              <meshBasicMaterial color={locked.status==='clear'?COL.red:'#8a7a66'}
+                transparent depthTest={false} depthWrite={false} />
+            </mesh>
+          </group>);
+      })()}
+
+      {/* a beam sweeps a lane, so show the lane rather than a single impact point */}
+      {locked && isBeam && (()=>{
+        const [sx,,sz]=worldOf(shooter.sq);
+        return (
+          <group position={[sx,0,sz]} rotation={[0,-locked.sol.yaw,0]}>
+            <mesh position={[0,0.025,-6.5]} rotation={[-Math.PI/2,0,0]} raycast={noPick} renderOrder={7}>
+              <planeGeometry args={[0.16,13]} />
+              <meshBasicMaterial color={COL.red} transparent opacity={0.35} depthWrite={false} />
+            </mesh>
+          </group>);
+      })()}
+
+      {arc && <primitive object={arc} />}
+    </>);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  14. CAMERA
+═══════════════════════════════════════════════════════════════════════════*/
+
+/**
+ * One camera for the whole game: an orbiting board view. There is deliberately no
+ * first-person aiming view — you aim by clicking squares, so the board must stay
+ * legible at all times.
+ */
+function CameraRig({ orbitRef, shakeRef }) {
+  const { camera } = useThree();
+  const tgt = useRef(new THREE.Vector3(0,0,0));
+  const dp  = useRef(new THREE.Vector3());
+  const dt2 = useRef(new THREE.Vector3());
+  useFrame((_,delta)=>{
+    {
+      const o=orbitRef.current, sp=Math.sin(o.polar);
+      dp.current.set(Math.sin(o.az)*sp*o.dist, Math.cos(o.polar)*o.dist, Math.cos(o.az)*sp*o.dist);
+      dt2.current.set(0,0.2,0);
+      camera.position.lerp(dp.current, CONFIG.CAM.lerp);
+      tgt.current.lerp(dt2.current, CONFIG.CAM.lerp);
+    }
+    if (shakeRef) {
+      const s = shakeRef.current;
+      if (s.amp > 0.0005) {
+        camera.position.x += (Math.random()-0.5)*s.amp;
+        camera.position.y += (Math.random()-0.5)*s.amp*0.7;
+        camera.position.z += (Math.random()-0.5)*s.amp;
+        s.amp = Math.max(0, s.amp - s.amp*CONFIG.FX.shakeDecay*delta - 0.0004);
+      } else s.amp = 0;
+    }
+    camera.lookAt(tgt.current);
+  });
+  return null;
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  15. SCENE
+═══════════════════════════════════════════════════════════════════════════*/
+
+function DebugHook() {
+  const three = useThree();
+  useEffect(()=>{ window.CA3 = three; }, [three]);
+  return null;
+}
+
+function Scene({ game, selectedId, hoverId, hints, fireState, targets, aimSq, hoverSq, themeName,
+                 orbitRef, shakeRef, shot, onSquare, onPick, onHover, onTileHover, onShotDone }) {
+  const sel = selectedId ? game.pieces[selectedId] : null;
+  const shooter = fireState ? game.pieces[fireState.shooterId] : null;
+  return (
+    <>
+      <color attach="background" args={[COL.bg]} />
+      <fog attach="fog" args={[COL.bg, 19, 46]} />
+      <hemisphereLight args={[LIT.sky, LIT.ground, LIT.hemi]} />
+      <ambientLight intensity={LIT.amb} />
+      <directionalLight position={[6,13,8]} intensity={LIT.dir} />
+      <directionalLight position={[-8,7,-6]} intensity={LIT.fill} color={LIT.fillCol} />
+
+      <DebugHook />
+      <CameraRig orbitRef={orbitRef} shakeRef={shakeRef} />
+      <Board onSquare={onSquare} onTileHover={onTileHover} hints={hints} themeName={themeName}
+             selSq={sel?sel.sq:-1} lastMove={game.lastMoveSquares} />
+
+      {game.scorch.map((s,i)=><Scorch key={'sc'+i} s={s} />)}
+
+      {Object.values(game.pieces).map(p=>(
+        <PieceMesh key={p.id} p={p} game={game}
+          aimYaw={shooter && p.id===shooter.id && aimSq!=null
+            ? (targets.find(t=>t.sq===aimSq)||{}).sol?.yaw : null}
+          selected={selectedId===p.id} hovered={hoverId===p.id}
+          eligible={!fireState && canFire(game,p)}
+          dim={!!fireState && p.id!==(shooter&&shooter.id)}
+          onPick={onPick} onHover={onHover} />))}
+
+      {shooter && !shot && (
+        <TargetOverlay game={game} shooterId={shooter.id} targets={targets}
+                       aimSq={aimSq} hoverSq={hoverSq} assist={game.settings.assistMode} />)}
+
+      {game.fx.map(e =>
+        e.kind==='blast'  ? <Blast key={e.id} e={e} shakeRef={shakeRef} /> :
+        e.kind==='muzzle' ? <MuzzleFlash key={e.id} e={e} /> :
+        e.kind==='float'  ? <Floater key={e.id} e={e} /> : null)}
+
+      {shot && (shot.beam
+        ? <Beam key={shot.key} shot={shot} onDone={onShotDone} />
+        : <Projectile key={shot.key} shot={shot} onDone={onShotDone} />)}
+    </>);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  16. RULES CARD
+═══════════════════════════════════════════════════════════════════════════*/
+
+function RulesCard({ onClose }) {
+  const B = CONFIG.BONUS;
+  return (
+    <div className="veil" onClick={onClose}>
+      <div className="card" onClick={e=>e.stopPropagation()}>
+        <h2>CHESS ARTILLERY</h2>
+        <p className="sub">Chess where every piece is armed — and every weapon is a real chess
+          principle. Play good chess and you shoot harder.</p>
+        <div className="rules">
+          <div>
+            <h4>The eight rules</h4>
+            <ul>
+              <li><b>1.</b> Normal chess. Normal board, normal moves, normal draws.</li>
+              <li><b>2.</b> Each turn: make one legal move, then optionally fire <b>one</b> shot
+                from any <i>other</i> piece that is loaded. One shot per turn for your whole army.</li>
+              <li><b>3.</b> Guns are cold until both sides have made <b>{CONFIG.GUNS_LIVE_AFTER_MOVES} moves</b>.
+                The opening is pure chess.</li>
+              <li><b>4.</b> Firing puts that piece on <b>cooldown</b> for a few turns. That is the
+                entire limit — there is no charging and no ammo.</li>
+              <li><b>5.</b> Everything has HP: {TYPES.map(t=>`${NAME[t].toLowerCase()} ${CONFIG.HP[t]}`).join(', ')}.
+                Below half HP, <b>sliding pieces move at half range</b>. Nothing else changes.</li>
+              <li><b>6.</b> Capturing kills instantly, but your capturing piece <b>takes the
+                victim's remaining HP</b> as recoil, capped at half its own max. Finish wounded
+                pieces; think twice about taking healthy ones.</li>
+              <li><b>7.</b> <b>Check is a free shot.</b> Every piece giving check automatically
+                fires at the king and goes on cooldown. Check again while it reloads and it does
+                nothing — so perpetual check is an escape, not a win.</li>
+              <li><b>8.</b> Win by checkmate, or by draining the king to 0 HP.</li>
+            </ul>
+
+            <h4 style={{marginTop:18}}>Aiming</h4>
+            <ul>
+              <li>Press <kbd>F</kbd>. Every square that weapon can reach lights up.</li>
+              <li><b>Filled dot</b> = the shot gets through. <b>Hollow diamond</b> = blocked, and
+                the bar names the piece in the way.</li>
+              <li>Blocked by your own piece? Switch to <b>LOB</b> (<kbd>Tab</kbd>) and watch the
+                crosses turn into dots. The knight always lobs; the rook never can.</li>
+              <li>Friendly fire is real, at half damage.</li>
+              <li><b>Hover any piece</b> for its live damage breakdown. The bonuses below change
+                constantly — the panel always shows the current number.</li>
+            </ul>
+          </div>
+
+          <div>
+            <h4>Weapons — chess principles as guns</h4>
+            <ul>
+              <li><b>♗ Bishop · Sniper.</b> Instant hitscan beam, unlimited range, pierces
+                everything in line. <b>Locked to its colour complex</b> — a light-squared bishop
+                simply cannot hurt anything on a dark square. <b>×2</b> from a fianchetto
+                (b2/g2/b7/g7). <b>+25%</b> while you keep the bishop pair. Each further body in the
+                beam takes {Math.round(B.BISHOP_PIERCE_FALLOFF*100)}% of the last. {CONFIG.WEAPONS.b.damage} base.</li>
+              <li><b>♘ Knight · Fork Gun.</b> Lobs over everything, cover is irrelevant. The shell
+                <b> splits and hits the two nearest enemies</b> within {B.KNIGHT_PRONG_RADIUS} squares.
+                <b> ×2</b> on an outpost (opponent's 5th/6th rank). <b>×0.5</b> on the a- or h-file,
+                because a knight on the rim is dim. Second prong at {Math.round(B.KNIGHT_PRONG_FALLOFF*100)}%.
+                Cannot fire closer than {CONFIG.WEAPONS.n.minRange} squares — close it down and its gun is dead.
+                {CONFIG.WEAPONS.n.damage} base per prong.</li>
+              <li><b>♖ Rook · Railgun.</b> Flat and fast, blocked by the first thing in the way.
+                Damage is driven by <b>your file</b>: blocked ×0.5, half-open ×1, <b>fully open ×2</b>.
+                <b>+50%</b> on the 7th rank. <b>Battery:</b> two rooks doubled on a line fire as one
+                combined shot — and both go on cooldown. {CONFIG.WEAPONS.r.damage} base.</li>
+              <li><b>♕ Queen · Artillery.</b> Big lobbed shell, {CONFIG.WEAPONS.q.damage} + {CONFIG.WEAPONS.q.splashDamage} splash, range {CONFIG.WEAPONS.q.maxRange}. <b>Half
+                damage before move {B.QUEEN_EARLY_UNTIL}</b> — don't bring her out early. Biggest
+                hitbox on the board, so she is the easiest thing to shoot back at.</li>
+              <li><b>♙ Pawn · Chain Gun.</b> Weak alone. <b>×2 when defended by another pawn.</b>
+                <b> +{B.PAWN_PER_RANK}</b> for every rank past its own 4th, so passed pawns get
+                genuinely scary. Forward diagonals only, range 3.</li>
+              <li><b>♔ King · Last Stand.</b> No weapon in the middlegame, and he can never be shot
+                — only checks hurt him. Once <b>both sides are down to {CONFIG.KING_ARMS_AT_PIECES} pieces</b>
+                he arms: 20 damage, range 2, all directions. Steinitz was right.</li>
+            </ul>
+
+            <h4 style={{marginTop:18}}>Extras</h4>
+            <ul>
+              <li>Stacked <i>positive</i> bonuses are capped at <b>×{B.MAX_BONUS_MULT}</b>. Penalties are never capped.</li>
+            </ul>
+            <h4 style={{marginTop:14}}>&nbsp;</h4>
+            <ul>
+              <li><b>En passant is an instant kill.</b> Ignores HP entirely, no recoil, obnoxious
+                announcement included.</li>
+              <li>A discovered check fires <b>two</b> guns at once, because two pieces are checking.</li>
+              <li>Draws are chess draws: stalemate, threefold repetition, fifty-move rule.</li>
+            </ul>
+
+            <h4 style={{marginTop:18}}>Controls</h4>
+            <ul>
+              <li>Click a piece, then a marked square, to move.</li>
+              <li><kbd>F</kbd> aim · click a target square · <kbd>Space</kbd> fire · <kbd>Esc</kbd> cancel</li>
+              <li><kbd>Enter</kbd> end turn · <kbd>Tab</kbd> flat/lob · <kbd>M</kbd> mute · <kbd>?</kbd> rules</li>
+              <li>Right-drag orbits, wheel zooms.</li>
+            </ul>
+          </div>
+        </div>
+        <div className="row" style={{marginTop:24}}>
+          <button className="go" onClick={()=>{ SFX.unlock(); onClose(); }}>START</button>
+        </div>
+      </div>
+    </div>);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  17. PANELS
+═══════════════════════════════════════════════════════════════════════════*/
+
+function Rail({ game, selectedId, onPick }) {
+  const ts = game.turnState;
+  const mine = Object.values(game.pieces).filter(p=>p.color===game.turn)
+    .sort((a,b)=>TYPES.indexOf(b.type)-TYPES.indexOf(a.type) || a.sq-b.sq);
+  const feedRef = useRef(), mvRef = useRef();
+  useEffect(()=>{ if(feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; },[game.log.length]);
+  useEffect(()=>{ if(mvRef.current) mvRef.current.scrollTop = mvRef.current.scrollHeight; },[game.moveList.length]);
+
+  const check = inCheck(game, game.turn);
+  const stale = false;
+  const moveDone = !!ts.movedId;
+  const shotState = ts.firedId ? 'ok' : ts.forfeited ? 'skip' : 'open';
+
+  return (
+    <div className="rail">
+      <section><div className="wordmark">CHESS <b>ARTILLERY</b></div></section>
+
+      <section>
+        <div className="lbl">Turn {Math.floor(game.ply/2)+1}</div>
+        <div className="side">
+          <div className={'dot '+game.turn} />
+          <div className="nm">{SIDE[game.turn]}</div>
+        </div>
+        <div className="steps">
+          <div className={'step '+(shotState==='ok'?'ok':'now')}>
+            <span className="n">{shotState==='ok'?'✓':'1'}</span>
+            Shoot <span style={{color:'var(--faint)'}}>(optional)</span>
+            {shotState==='skip' && <span className="hint">forfeited</span>}
+          </div>
+          <div className="step now">
+            <span className="n">2</span>Move — this ends your turn
+          </div>
+        </div>
+        {check && <div className="alert"><b>You are in check.</b> Your move must get out of it —
+          only legal escapes are offered.</div>}
+        {!gunsLive(game) && <div className="alert">Guns cold until both sides have made {CONFIG.GUNS_LIVE_AFTER_MOVES} moves.</div>}
+      </section>
+
+      <section className="roster">
+        <div className="lbl">{SIDE[game.turn]}'s pieces</div>
+        <div className="list">
+          {mine.map(p=>{
+            const w=weaponOf(p, game), f=p.hp/p.maxHp;
+            const tag = !w ? ['off','aura'] : p.cooldown>0 ? ['cd',`${p.cooldown}t`]
+              : ['rdy','ready'];
+            return (
+              <div key={p.id} className={'unit'+(selectedId===p.id?' on':'')} onClick={()=>onPick(p.id)}>
+                <div className="g" style={{color:p.color==='w'?COL.wTrim:COL.bTrim}}>{GLYPH[p.color][p.type]}</div>
+                <div>
+                  <div className="nm">{NAME[p.type]} <em>{sqName(p.sq)}</em>
+                    {isCrippled(p) && <span style={{color:'var(--red)'}}> ✚</span>}</div>
+                  <div className="bar"><i style={{width:(f*100)+'%', background:hpColor(f)}} /></div>
+                </div>
+                <div className={'tag '+tag[0]}>{tag[1]}</div>
+              </div>);
+          })}
+        </div>
+      </section>
+
+      <section className="moves">
+        <div className="lbl">Moves</div>
+        <div className="list" ref={mvRef}>
+          <table><tbody>
+            {game.moveList.map(m=>(
+              <tr key={m.n}><td className="n">{m.n}.</td><td>{m.w}</td><td>{m.b||''}</td></tr>))}
+            {!game.moveList.length && <tr><td className="n">—</td><td colSpan={2}>no moves yet</td></tr>}
+          </tbody></table>
+        </div>
+      </section>
+
+      <section className="feed">
+        <div className="lbl">Log</div>
+        <div className="list" ref={feedRef}>
+          {game.log.slice(-60).map(l=><div key={l.id} className={'k-'+l.kind}>{l.text}</div>)}
+        </div>
+      </section>
+    </div>);
+}
+
+/**
+ * Hover panel with the LIVE damage breakdown. The chess-culture bonuses are the
+ * best part of the design and also the biggest risk — six conditional multipliers
+ * are invisible math unless the player can see exactly why a rook just hit for 70.
+ */
+function Tooltip({ game, hover }) {
+  if (!hover || !hover.id) return null;
+  const p = game.pieces[hover.id]; if(!p) return null;
+  const w = weaponOf(p, game), f = p.hp/p.maxHp;
+  const prof = w ? damageProfile(game, p) : null;
+  const x = Math.min(hover.x+16, window.innerWidth-246);
+  const y = Math.min(hover.y+16, window.innerHeight-280);
+  return (
+    <div className="tip" style={{left:x, top:y}}>
+      <div className="h">{GLYPH[p.color][p.type]} {SIDE[p.color]} {NAME[p.type]} · {sqName(p.sq)}</div>
+      <div className="bar" style={{height:4}}><i style={{width:(f*100)+'%',background:hpColor(f)}} /></div>
+      <div className="r" style={{marginTop:5}}><span>HP</span><b>{p.hp} / {p.maxHp}</b></div>
+      <div className="r"><span>State</span><b style={{color: !w?'var(--dim)': p.cooldown>0?'var(--gold)':'var(--accent)'}}>
+        {!w ? (p.type==='k'?'unarmed until endgame':'unarmed')
+            : p.cooldown>0 ? `reloading ${p.cooldown}` : 'LOADED'}</b></div>
+      {isCrippled(p) && <div className="r"><span>Wounded</span><b style={{color:'var(--red)'}}>{crippleNote(p)}</b></div>}
+
+      {w && prof ? (
+        <div className="w">
+          <div style={{fontWeight:600,color:'var(--ink)',marginBottom:5}}>{w.label}</div>
+          <div className="dmg">
+            <div className="dl"><span>Base</span><span>{prof.base}</span></div>
+            {prof.mods.map((m,i)=>(
+              <div className="dl bonus" key={i}><span>{m.name}</span><span>{m.text}</span></div>))}
+            <div className="dl tot"><span>Damage</span><span>{prof.total}</span></div>
+          </div>
+          <div style={{marginTop:6}}>
+            {isFinite(w.maxRange)?w.maxRange+' squares':'unlimited range'} · reload {w.cooldown}
+            {w.splashDamage?` · +${w.splashDamage} splash`:''}<br />
+            fires into {SECTOR_TEXT[w.sector]}
+            {w.prongs>0 && <><br />forks — hits the {w.prongs} nearest enemies</>}
+            {w.ignoresCover && <><br />arcs over cover</>}
+            {w.hitscan && <><br />pierces the whole line · only damages {squareTint(p.sq)?'light':'dark'} squares</>}
+          </div>
+        </div>
+      ) : (
+        <div className="w">{p.type==='k'
+          ? `No weapon until both sides are down to ${CONFIG.KING_ARMS_AT_PIECES} pieces. Cannot be shot — only checks hurt him.`
+          : 'No weapon.'}</div>
+      )}
+    </div>);
+}
+
+function SettingsCard({ game, onSet, onClose }) {
+  const S = game.settings;
+  return (
+    <div className="veil" onClick={onClose}>
+      <div className="card" style={{width:'min(430px,92vw)'}} onClick={e=>e.stopPropagation()}>
+        <h2>SETTINGS</h2>
+        <p className="sub">Changes apply immediately.</p>
+        <label className="toggle">
+          <input type="checkbox" checked={S.captureDamage} onChange={e=>onSet('captureDamage',e.target.checked)} />
+          <div><div className="t">Capture damage</div>
+            <div className="d">The capturer takes the victim's remaining HP as recoil, capped at {Math.round(CONFIG.CAPTURE_RECOIL_CAP_FRACTION*100)}% of its own max. En passant is always free.</div></div>
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={S.friendlyFire} onChange={e=>onSet('friendlyFire',e.target.checked)} />
+          <div><div className="t">Friendly fire</div>
+            <div className="d">Your own pieces take {Math.round(CONFIG.FRIENDLY_FIRE_MULT*100)}% damage from your shots.</div></div>
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={S.assistMode} onChange={e=>onSet('assistMode',e.target.checked)} />
+          <div><div className="t">Assist mode</div>
+            <div className="d">Draws the shell's actual trajectory for the locked target.</div></div>
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={S.checkShots} onChange={e=>onSet('checkShots',e.target.checked)} />
+          <div><div className="t">Check fires a free shot</div>
+            <div className="d">Every piece giving check shoots the king for {Math.round(CONFIG.CHECK_SHOT_MULT*100)}% of its damage,
+              then reloads. Turn this off for pure chess: check costs no HP and checkmate becomes the only way to win.</div></div>
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={S.autoFlip} onChange={e=>onSet('autoFlip',e.target.checked)} />
+          <div><div className="t">Auto-flip board</div>
+            <div className="d">Swing the view round to whoever is on move. Hot-seat default.</div></div>
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={S.shotClock} onChange={e=>onSet('shotClock',e.target.checked)} />
+          <div><div className="t">Shot clock</div>
+            <div className="d">{CONFIG.SHOT_CLOCK_SECONDS}s to take a shot once you enter aim mode. Off by default — take your time.</div></div>
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={S.sound} onChange={e=>onSet('sound',e.target.checked)} />
+          <div><div className="t">Sound</div>
+            <div className="d">Cannon reports, shell whistle and impacts. Synthesised — no audio files.</div></div>
+        </label>
+        <div className="row" style={{marginTop:20}}><button className="go" onClick={onClose}>DONE</button></div>
+      </div>
+    </div>);
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  18. APP
+═══════════════════════════════════════════════════════════════════════════*/
+
+function bootGame() {
+  const st = newGame({
+    captureDamage: CONFIG.CAPTURE_DAMAGE_DEFAULT,
+    friendlyFire:  CONFIG.FRIENDLY_FIRE_DEFAULT,
+    assistMode:    CONFIG.ASSIST_MODE_DEFAULT,
+    sound:         CONFIG.SOUND_DEFAULT,
+    shotClock:     CONFIG.SHOT_CLOCK_DEFAULT,
+    autoFlip:      CONFIG.AUTO_FLIP_DEFAULT,
+    checkShots:    CONFIG.CHECK_SHOTS_DEFAULT,
+  });
+  beginTurn(st);
+  return st;
+}
+
+/** Plain-language answer to "why can't this piece shoot?" */
+function fireBlockReason(st, p) {
+  if (!p) return null;
+  if (p.color !== st.turn)          return 'It belongs to the other player.';
+  if (!gunsLive(st)) return `Guns are cold until both sides have made ${CONFIG.GUNS_LIVE_AFTER_MOVES} moves.`;
+  if (!weaponOf(p, st)) return p.type==='k'
+    ? `The king arms himself only once both sides are down to ${CONFIG.KING_ARMS_AT_PIECES} pieces.`
+    : 'This piece has no weapon.';
+  if (st.turnState.firedId)         return 'You have already fired this turn.';
+  if (st.turnState.forfeited)       return 'The shot clock ran out this turn.';
+  if (st.turnState.movedId === p.id)return 'This is the piece you moved this turn.';
+  if (p.cooldown > 0)               return `Reloading — ready in ${p.cooldown} of your turn${p.cooldown>1?'s':''}.`;
+  return null;
+}
+
+function App() {
+  const [game, setGame]           = useState(bootGame);
+  const [selectedId, setSelected] = useState(null);
+  const [fireState, setFireState] = useState(null);
+  const [shot, setShot]           = useState(null);
+  const [hover, setHover]         = useState(null);
+  const [clock, setClock]         = useState(CONFIG.SHOT_CLOCK_SECONDS);
+  const [promo, setPromo]         = useState(null);
+  const [arcPref, setArcPref]     = useState('flat');
+  const [showRules, setRules]     = useState(true);
+  const [showSet, setSet]         = useState(false);
+  const [aimSq, setAimSq]         = useState(null);   // locked target square
+  const [theme, setTheme]         = useState(() => {
+    try { const t = localStorage.getItem('ca-theme'); if (THEMES[t]) return t; } catch(e){}
+    return 'ivory';
+  });
+  const [denied, setDenied]       = useState(null);   // "why can't this fire" note
+
+  const orbitRef = useRef({ az:0, polar:CONFIG.CAM.polar, dist:CONFIG.CAM.dist });
+  const histRef  = useRef([]);          // one snapshot per ply, for Undo
+  const snapPly  = useRef(-1);
+  const [toast, setToast] = useState(null);
+  const shakeRef = useRef({ amp:0 });
+  const orbiting = useRef(false);
+  const firing   = useRef(false);
+  const pendSim  = useRef(null);
+  const stageRef = useRef();
+
+  const mutate = useCallback(fn => setGame(g => { const n = structuredClone(g); fn(n); return n; }), []);
+  const busy = !!(shot || promo || game.gameOver || showRules || showSet);
+
+  useEffect(()=>{ SFX.setMuted(!game.settings.sound); },[game.settings.sound]);
+
+  // One snapshot per turn, taken the moment the turn opens. Undo rewinds to it,
+  // so a misclicked move is recoverable but you can never rewind the opponent.
+  useEffect(()=>{
+    if (game.ply !== snapPly.current) {
+      snapPly.current = game.ply;
+      histRef.current.push(structuredClone(game));
+      if (histRef.current.length > 40) histRef.current.shift();
+      if (!game.gameOver && game.ply > 0) {   // ply 0 fires behind the rules card
+        setToast({ text:`${SIDE[game.turn]} to move`, id:game.ply });
+        // Hot-seat: swing the board round to whoever is now on move.
+        if (game.settings.autoFlip)
+          orbitRef.current.az = game.turn==='w' ? 0 : Math.PI;
+      }
+    }
+  },[game]);
+  useEffect(()=>{ if(!toast) return; const t=setTimeout(()=>setToast(null),1400); return ()=>clearTimeout(t); },[toast]);
+  // Repaint the HTML chrome and the 3D palette together. COL is mutated in place
+  // and every material reads it at render time, so this one call restyles both.
+  useEffect(()=>{ applyTheme(theme);
+    try { localStorage.setItem('ca-theme', theme); } catch(e){} },[theme]);
+
+  const hints = useMemo(()=>{
+    if (!selectedId || fireState || busy) return [];
+    const p = game.pieces[selectedId];
+    if (!p || !canMovePiece(game,p)) return [];
+    return legalMovesFor(game, selectedId);
+  },[game, selectedId, fireState, busy]);
+
+  /** Pre-resolved shot options for the piece currently aiming. */
+  const targets = useMemo(()=>{
+    if (!fireState || shot) return [];
+    return targetOptions(game, fireState.shooterId, arcPref);
+  },[game, fireState, arcPref, shot]);
+  const targetMap = useMemo(()=>{ const m=new Map(); for(const t of targets) m.set(t.sq,t); return m; },[targets]);
+  const locked = aimSq!=null ? targetMap.get(aimSq) : null;
+  // What this shot will actually do — shown BEFORE you commit.
+  const preview = useMemo(()=>(
+    locked && fireState ? shotPreview(game, fireState.shooterId, locked.sim) : []
+  ),[game, fireState, locked]);
+
+  /*── fire ─────────────────────────────────────────────────────────────*/
+  const enterFire = useCallback(id=>{
+    const p = game.pieces[id];
+    if (!p) return;
+    if (!canFire(game,p)) {
+      const why = fireBlockReason(game,p);
+      if (why) { setDenied(why); SFX.tick('deny'); }
+      return;
+    }
+    setArcPref(weaponOf(p, game).arcBand==='lob' ? 'lob' : 'flat');
+    setDenied(null);
+    setAimSq(null);
+    setSelected(id);
+    setFireState({ shooterId:id, startedAt:performance.now() });
+    setClock(CONFIG.SHOT_CLOCK_SECONDS);
+    SFX.tick('select');
+  },[game]);
+
+  const cancelFire = useCallback(()=>{ setFireState(null); setAimSq(null); },[]);
+
+  const forfeitShot = useCallback(()=>{
+    const fs=fireState; if(!fs) return;
+    setFireState(null); setAimSq(null);
+    mutate(st=>{
+      st.turnState.forfeited = true;
+      say(st,'shot','Shot clock expired — shot forfeited this turn. No cooldown; the piece stays loaded.');
+    });
+  },[fireState, mutate]);
+
+  const doFire = useCallback(()=>{
+    const fs=fireState;
+    if (!fs || shot || firing.current || !locked) return;
+    const p = game.pieces[fs.shooterId];
+    if (!p || !canFire(game,p)) return;
+    firing.current = true;
+    const w = weaponOf(p, game);
+    const sim = locked.sim;                       // exactly what the preview showed
+    pendSim.current = { shooterId:fs.shooterId, sim, blast:w.blast };
+    setFireState(null); setAimSq(null);
+    const duration = sim.beam ? CONFIG.BEAM_LIFETIME_S
+      : Math.max(0.14,(sim.pts.length-1)*CONFIG.SIM_DT);
+    setShot({ key:'s'+game.seq+'_'+Date.now(), pts:sim.pts, color:w.tracer,
+              size:w.size, beam:!!sim.beam, duration });
+    SFX.launch(p.type, duration);
+    mutate(st=>{
+      const q = st.pieces[fs.shooterId]; if(!q) return;
+      // cooldown is set inside resolveShot, once the shell lands
+      st.turnState.firedId=q.id;
+      const [mx,,mz]=worldOf(q.sq);
+      fx(st,'muzzle',{ x:mx, y:muzzleY(q), z:mz, color:w.tracer });
+      say(st,'shot',`${label(q)} fires ${w.label} at ${sqName(locked.sq)} (${locked.sol.arcUsed}).`);
+    });
+  },[fireState, shot, game, locked, mutate]);
+
+  const onShotDone = useCallback(()=>{
+    const ps = pendSim.current;
+    pendSim.current = null;
+    firing.current = false;
+    setShot(null);
+    if (ps) {
+      if (!ps.sim.offBoard) SFX.impact(ps.blast);
+      mutate(st=>resolveShot(st, ps.shooterId, ps.sim));
+    }
+  },[mutate]);
+
+  /*── move ─────────────────────────────────────────────────────────────*/
+  const playMove = useCallback((mv, promoteType)=>{
+    setSelected(null);
+    mutate(st=>{
+      if (st.gameOver || st.turnState.movedId) return;
+      const id = st.board[mv.from];
+      const p = id!=null ? st.pieces[id] : null;
+      if (!p || p.color!==st.turn || st.turnState.firedId===id) return;
+      // Re-derive from live state: a queued click may describe a stale position.
+      const fresh = legalMovesFor(st,id).find(m =>
+        m.to===mv.to && !!m.castle===!!mv.castle && !!m.enPassant===!!mv.enPassant);
+      if (!fresh) return;
+      st.lastMoveSquares = { from:fresh.from, to:fresh.to };
+      if (applyMove(st, fresh, promoteType)) advanceTurn(st);   // the move ends the turn
+    });
+    SFX.tick('move');
+  },[mutate]);
+
+  /** In aim mode a board click locks a target; otherwise it selects or moves. */
+  const onSquare = useCallback(sq=>{
+    if (busy) return;
+    if (fireState) {
+      if (targetMap.has(sq)) { setAimSq(sq); SFX.tick('select'); }
+      else SFX.tick('deny');
+      return;
+    }
+    const mv = hints.find(h=>h.to===sq);
+    if (mv) { mv.promote ? setPromo(mv) : playMove(mv); return; }
+    const id = game.board[sq];
+    setSelected(id!=null ? id : null);
+    setDenied(null);
+    if (id!=null) SFX.tick('select');
+  },[fireState, busy, game, hints, playMove, targetMap]);
+
+  const onPick = useCallback(id=>{
+    if (busy) return;
+    const p = game.pieces[id]; if(!p) return;
+    if (fireState) { onSquare(p.sq); return; }        // clicking a piece targets its square
+    const mv = hints.find(h=>h.to===p.sq);
+    if (mv) { mv.promote ? setPromo(mv) : playMove(mv); return; }
+    // Once the move is spent, clicking a loaded piece goes straight to aiming.
+    if (canFire(game,p) && !canMovePiece(game,p)) { enterFire(id); return; }
+    setSelected(id);
+    setDenied(p.color===game.turn ? fireBlockReason(game,p) : null);
+    SFX.tick('select');
+  },[fireState, busy, game, hints, playMove, enterFire, onSquare]);
+
+  /* Because the move auto-ends the turn, "undo" has to reach back across the ply
+     boundary — but only to the start of your OWN last turn, never into the
+     opponent's. Acted-this-turn → rewind to this turn's start; already handed
+     over → rewind to the start of the turn you just played. */
+  const acted = !!(game.turnState.movedId || game.turnState.firedId || game.turnState.forfeited);
+  const h = histRef.current;
+  const undoIdx = acted ? h.length-1 : h.length-2;
+  const canUndo = !shot && !game.gameOver && undoIdx >= 0 && !!h[undoIdx];
+  const undoTurn = useCallback(()=>{
+    if (shot) return;
+    const hh = histRef.current;
+    const actedNow = !!(game.turnState.movedId || game.turnState.firedId || game.turnState.forfeited);
+    const i = actedNow ? hh.length-1 : hh.length-2;
+    if (i < 0 || !hh[i]) return;
+    const restore = hh[i];
+    hh.length = i;                       // drop everything from that point on
+    snapPly.current = -1;                // let the effect re-snapshot cleanly
+    setSelected(null); setFireState(null); setAimSq(null); setPromo(null); setDenied(null);
+    firing.current = false; pendSim.current = null;
+    setGame(structuredClone(restore));
+    SFX.tick('deny');
+  },[shot, game]);
+
+
+
+  /*── shot clock ───────────────────────────────────────────────────────*/
+  useEffect(()=>{
+    if (!fireState || !game.settings.shotClock){ setClock(CONFIG.SHOT_CLOCK_SECONDS); return; }
+    let raf;
+    const tick=()=>{
+      const left = CONFIG.SHOT_CLOCK_SECONDS - (performance.now()-fireState.startedAt)/1000;
+      setClock(Math.max(0,left));
+      if (left<=0){ forfeitShot(); return; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return ()=>cancelAnimationFrame(raf);
+  },[fireState, forfeitShot, game.settings.shotClock]);
+
+  /*── pointer: orbit + fire ────────────────────────────────────────────*/
+  const onPointerDown = useCallback(e=>{
+    if (e.button===2 || e.button===1){ orbiting.current=true; e.preventDefault(); }
+  },[]);
+
+  const onPointerMove = useCallback(e=>{
+    if (!orbiting.current) return;
+    const o = orbitRef.current;
+    o.az -= e.movementX*0.006;
+    o.polar = clamp(o.polar - e.movementY*0.005, CONFIG.CAM.minPolar, CONFIG.CAM.maxPolar);
+  },[]);
+
+  useEffect(()=>{
+    const up = ()=>{ orbiting.current=false; };
+    const wheel = e=>{
+      if (!stageRef.current || !stageRef.current.contains(e.target)) return;
+      e.preventDefault();
+      const o=orbitRef.current;
+      o.dist = clamp(o.dist + e.deltaY*0.012, CONFIG.CAM.minDist, CONFIG.CAM.maxDist);
+    };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('wheel', wheel, {passive:false});
+    return ()=>{ window.removeEventListener('pointerup',up); window.removeEventListener('wheel',wheel); };
+  },[]);
+
+  /*── keys ─────────────────────────────────────────────────────────────*/
+  const shooter  = fireState ? game.pieces[fireState.shooterId] : null;
+  const shooterW = shooter ? weaponOf(shooter, game) : null;
+  const canPickArc = !!shooterW && shooterW.arcBand==='both';
+  const [hoverSq, setHoverSq] = useState(null);
+  const onTileHover = useCallback(sq=>{ setHoverSq(h => h===sq ? h : sq); },[]);
+
+  useEffect(()=>{
+    const onKey = e=>{
+      if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+      if (e.key==='?' || e.key==='/'){ e.preventDefault(); setRules(v=>!v); return; }
+      if (showRules || showSet){ if(e.key==='Escape'){ setRules(false); setSet(false); } return; }
+      if (e.key==='Escape'){ fireState ? cancelFire() : (setSelected(null), setDenied(null)); }
+      else if (e.key==='f'||e.key==='F'){ if(!fireState && selectedId) enterFire(selectedId); }
+      else if (e.key===' '){ if(fireState){ e.preventDefault(); doFire(); } }
+      else if (e.key==='Enter'){ if (fireState) doFire(); }
+      else if (e.key==='Tab'){ if(canPickArc){ e.preventDefault(); setArcPref(a=>a==='flat'?'lob':'flat'); } }
+      else if (e.key==='m'||e.key==='M'){ mutate(st=>{ st.settings.sound = !st.settings.sound; }); }
+      else if (e.key==='u'||e.key==='U'){ undoTurn(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return ()=>window.removeEventListener('keydown', onKey);
+  },[fireState, selectedId, showRules, showSet, canPickArc, enterFire, cancelFire, doFire, mutate, undoTurn]);
+
+  /*── render ───────────────────────────────────────────────────────────*/
+  const ts = game.turnState;
+  const stale = false;
+  const selPiece = selectedId ? game.pieces[selectedId] : null;
+  const selCanFire = selPiece && canFire(game, selPiece);
+
+  const clearCount = targets.filter(t=>t.status==='clear').length;
+  const inChk = inCheck(game, game.turn);
+  const prompt = game.gameOver ? 'Game over'
+    : fireState ? (locked
+        ? <>Target <b>{sqName(locked.sq)}</b> — press <b>Fire</b>, or click another square</>
+        : <>Click a <b>marked square</b> to aim · {clearCount} clear, {targets.length-clearCount} blocked</>)
+    : shot ? 'Shot in flight…'
+    : inChk ? <><b>You are in check</b> — your move must answer it</>
+    : ts.firedId ? <>Shot fired. Now <b>move</b> — that ends your turn</>
+    : <>Optionally <b>fire</b> a loaded piece, then <b>move</b> to end your turn</>;
+
+  return (
+    <div className="app">
+      <Rail game={game} selectedId={selectedId} onPick={onPick} />
+
+      <div className="stage" ref={stageRef}
+           onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+           onContextMenu={e=>e.preventDefault()}>
+        <Canvas camera={{position:[0,10,11], fov:40, near:0.1, far:120}}
+                dpr={[1,2]} gl={{antialias:true}}>
+          <Scene game={game} selectedId={selectedId} hoverId={hover&&hover.id} hints={hints}
+                 fireState={fireState} targets={targets} aimSq={aimSq}
+                 hoverSq={fireState?hoverSq:null} themeName={theme}
+                 orbitRef={orbitRef} shakeRef={shakeRef} shot={shot}
+                 onSquare={onSquare} onPick={onPick} onShotDone={onShotDone}
+                 onTileHover={onTileHover}
+                 onHover={(id,e)=>setHover(id?{id,x:e.clientX,y:e.clientY}:null)} />
+        </Canvas>
+
+        <div className="hud">
+          {prompt && <div className="tl"><div className="prompt">{prompt}</div></div>}
+          {game.banner && <div className="shout">{game.banner.text}</div>}
+          {inChk && !game.gameOver && !shot && (
+            <div className="checkbar">
+              CHECK — {SIDE[game.turn]} must answer it
+            </div>)}
+          {toast && !game.banner && (
+            <div className="turntoast" key={toast.id}>
+              <span className={'dot '+game.turn} /> {toast.text}
+            </div>)}
+
+          <div className="tr">
+            <select className="themesel" value={theme} title="Theme"
+              onChange={e=>setTheme(e.target.value)}>
+              {THEME_ORDER.map(k=><option key={k} value={k}>{THEMES[k].label}</option>)}
+            </select>
+            <button className="icon ghost" title="Rules (?)" onClick={()=>setRules(true)}>?</button>
+            <button className="icon ghost" title="Sound (M)"
+              onClick={()=>mutate(st=>{ st.settings.sound = !st.settings.sound; })}>
+              {game.settings.sound ? '🔊' : '🔇'}</button>
+            <button className="icon ghost" title="Settings" onClick={()=>setSet(true)}>⚙</button>
+            <button className="icon ghost" title="Flip view"
+              onClick={()=>{ orbitRef.current.az = Math.abs(normAng(orbitRef.current.az))<0.1 ? Math.PI : 0; }}>⇅</button>
+          </div>
+
+          {!fireState && !shot && !game.gameOver && (
+            <div className="dock">
+              {selPiece && (
+                <>
+                  <div className="cell">
+                    <div className="cap">Selected</div>
+                    <div className="val">{GLYPH[selPiece.color][selPiece.type]} {NAME[selPiece.type]} {sqName(selPiece.sq)}</div>
+                    {denied && <div style={{fontSize:10.5,color:'var(--dim)',maxWidth:210}}>{denied}</div>}
+                  </div>
+                  <div className="sep" />
+                </>)}
+              <button className="fire" disabled={!selCanFire} onClick={()=>enterFire(selectedId)}>
+                AIM <kbd style={{marginLeft:6}}>F</kbd>
+              </button>
+              <button disabled={!canUndo} onClick={undoTurn} title="Take back your last turn">
+                UNDO <kbd style={{marginLeft:6}}>U</kbd>
+              </button>
+            </div>)}
+
+          {fireState && shooter && shooterW && (
+            <div className="dock" onPointerDown={e=>e.stopPropagation()}>
+              <div className="cell">
+                <div className="cap">{NAME[shooter.type]} {sqName(shooter.sq)}</div>
+                <div className="val">{shooterW.label} · {shooterW.damage} dmg</div>
+              </div>
+              <div className="sep" />
+              <div className="cell" style={{minWidth:210}}>
+                <div className="cap">Target</div>
+                {!locked ? (
+                  <div className="shotline"><span className="pill none">
+                    {targets.length ? 'click a marked square' : 'no shot from here'}</span></div>
+                ) : (
+                  <>
+                    <div className="shotline">
+                      <b>{sqName(locked.sq)}</b>
+                      {locked.status==='clear'
+                        ? <span className="pill clear">clear</span>
+                        : <span className="pill block">blocked{locked.blockerId && game.pieces[locked.blockerId]
+                            ? ' by '+NAME[game.pieces[locked.blockerId].type]+' '+sqName(game.pieces[locked.blockerId].sq)
+                            : ''}</span>}
+                    </div>
+                    <div className="hits">
+                      {preview.filter(h=>h.dmg>0||h.blocked==='immune'||h.blocked==='ff-off').length
+                        ? preview.filter(h=>h.dmg>0||h.blocked==='immune'||h.blocked==='ff-off').map(h=>(
+                        <div key={h.id} className={'hit'+(h.friendly?' own':'')+(h.lethal?' kill':'')}>
+                          <span>{GLYPH[h.color][h.type]} {sqName(h.sq)}</span>
+                          <span>{h.blocked==='immune' ? 'immune'
+                               : h.blocked==='ff-off' ? 'safe'
+                               : h.lethal ? `−${h.dmg} KILL` : `−${h.dmg}`}</span>
+                        </div>
+                      )) : <div className="hit none">hits nothing</div>}
+                    </div>
+                  </>)}
+              </div>
+              <div className="sep" />
+              <div className="cell">
+                <div className="cap">Arc {canPickArc ? '' : '(fixed)'}</div>
+                <div className="arcsel">
+                  <button className={arcPref==='flat'?'sel':''} disabled={!canPickArc}
+                          onClick={()=>setArcPref('flat')}>FLAT</button>
+                  <button className={arcPref==='lob'?'sel':''} disabled={!canPickArc}
+                          onClick={()=>setArcPref('lob')}>LOB</button>
+                </div>
+              </div>
+              <div className="sep" />
+              {game.settings.shotClock && (<>
+                <div className="cell">
+                  <div className="cap">Shot clock</div>
+                  <div className={'clk'+(clock<=5?' hot':'')}>{clock.toFixed(1)}</div>
+                </div>
+                <div className="sep" />
+              </>)}
+              <button className="fire" disabled={!locked} onClick={doFire}>
+                FIRE <kbd style={{marginLeft:6}}>Space</kbd></button>
+              <button className="ghost" onClick={cancelFire}>Cancel</button>
+            </div>)}
+        </div>
+      </div>
+
+      <Tooltip game={game} hover={hover} />
+
+      {showRules && <RulesCard onClose={()=>setRules(false)} />}
+      {showSet && <SettingsCard game={game} onClose={()=>setSet(false)}
+        onSet={(k,v)=>mutate(st=>{ st.settings[k]=v; say(st,'sys',`${k} → ${v?'on':'off'}`); })} />}
+
+      {promo && (
+        <div className="veil"><div className="card" style={{width:'min(430px,92vw)'}}>
+          <h2>PROMOTION</h2>
+          <p className="sub">Pawn reaches {sqName(promo.to)}. It arrives at {Math.round(CONFIG.PROMOTION_HP_FRACTION*100)}% of the new piece's max HP.</p>
+          <div className="grid4">
+            {['q','r','b','n'].map(t=>(
+              <button key={t} onClick={()=>{ const mv=promo; setPromo(null); playMove(mv,t); }}>
+                {GLYPH[game.turn][t]}
+                <span>{NAME[t]}<br />{Math.round(CONFIG.HP[t]*CONFIG.PROMOTION_HP_FRACTION)} HP</span>
+              </button>))}
+          </div>
+        </div></div>)}
+
+      {game.gameOver && (
+        <div className="veil"><div className="card over" style={{width:'min(400px,92vw)',textAlign:'center'}}>
+          <h2>GAME OVER</h2>
+          <div className="big" style={{color:game.gameOver.winner?'var(--accent)':'var(--dim)'}}>
+            {game.gameOver.winner ? SIDE[game.gameOver.winner].toUpperCase()+' WINS' : 'DRAW'}
+          </div>
+          <p className="sub" style={{marginTop:6}}>{game.gameOver.reason}</p>
+          <button className="go" style={{width:'100%'}} onClick={()=>{
+            setSelected(null); setFireState(null); setShot(null); setPromo(null);
+            firing.current=false; pendSim.current=null; setGame(bootGame());
+          }}>NEW GAME</button>
+        </div></div>)}
+    </div>);
+}
+
+/** Keeps a render-time throw from blanking the page. */
+class Boundary extends React.Component {
+  constructor(p){ super(p); this.state={err:null}; }
+  static getDerivedStateFromError(err){ return {err}; }
+  componentDidCatch(err,info){ console.error('CHESS ARTILLERY crashed:', err, info); }
+  render(){
+    if (!this.state.err) return this.props.children;
+    return (
+      <div className="veil"><div className="card" style={{width:'min(520px,92vw)'}}>
+        <h2>SOMETHING BROKE</h2>
+        <p className="sub">The game hit an unexpected error. Reload to start over.</p>
+        <pre style={{fontSize:10,color:'#ff9f9f',whiteSpace:'pre-wrap',maxHeight:150,overflow:'auto'}}>
+          {String(this.state.err && this.state.err.stack || this.state.err)}</pre>
+        <button className="go" style={{width:'100%',marginTop:14}}
+          onClick={()=>window.location.reload()}>RELOAD</button>
+      </div></div>);
+  }
+}
+
+/* Console handle for retuning: CA.legalMoves(CA.boot(),'w').length → 20 */
+window.CA = {
+  CONFIG, boot:bootGame, newGame, beginTurn, advanceTurn, applyMove, legalMoves, legalMovesFor,
+  pieceMoves, attacked, inCheck, checkAttackerCount, simulateShot, resolveShot, applyDamage,
+  killPiece, isCrippled, slideRange, sectorCenters, clampYawToSector, aimAt, canFire,
+  canMovePiece, sqName, sqOfWorld, worldOf, mkSq, fileOf, rankOf, buildSAN, weaponOf, muzzleY,
+  findKing, positionKey, targetOptions, fireBlockReason, SFX, shotPreview, projectMove,
+  damageProfile, gunsLive, kingArmed, fireCheckShots, batteryPartner, fileState, lineState, pawnIsChained,
+};
+
+createRoot(document.getElementById('root')).render(<Boundary><App /></Boundary>);
+</script>
