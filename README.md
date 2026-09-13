@@ -379,3 +379,5 @@ a single-file MVP but is not how you would ship this.
 
 Every balance number is in the exported `CONFIG` at the top of `index.html`.
 `window.CA` exposes the rules engine in the console for retuning.
+
+<!-- Factory smoke test, 2026-09-14: this harmless note proves the cloud gate runs. Safe to remove. -->
