@@ -1,5 +1,43 @@
 # CHESS ARTILLERY
 
+## Running the factory
+
+This game is maintained by a *dark factory*: you write tasks in plain language,
+a cloud agent does them while you are away, and nothing ships until you click
+**Merge**. You never need to read code.
+
+**1. Give it a task.** Open a new issue at
+<https://github.com/djboy26/chess-artillery/issues/new>, describe what you want
+the way you would to a colleague, and add the label **factory**. Add the label
+**balance** as well only if the task is allowed to change how strong things are.
+Only you can add labels, so nobody else can feed the factory.
+
+**2. Wait.** A shift runs every three hours from
+<https://claude.ai/code/routines/trig_01EnknRv4HB35z76VhYtnxXC> (press *Run now*
+there to skip the wait). It takes the oldest open factory issue, does it, runs
+the gate, and opens a pull request written for you under the headings Asked,
+Changed, Checks, Balance and Undo.
+
+**3. Decide.** Open <https://github.com/djboy26/chess-artillery/pulls>. A green
+check means the gate passed. Read the summary, then press **Merge** to ship it
+or **Close** to throw it away. A red gate cannot be merged, by anyone. To play a
+pull request before deciding, ask Claude Code on this PC to *check out pull
+request #N and start the game*, then open <http://localhost:5173>.
+
+**If it got stuck**, the pull request title starts with *NEEDS A HUMAN* and the
+summary says what is blocking. Reply on the issue with clarification; the next
+shift reads comments before it starts.
+
+**What green means.** The gate plays 120 random games and checks every position
+for chess-rule violations, then plays 120 fixed bot games and compares the
+balance numbers to the approved snapshot in `balance-baseline.json`. Anything
+outside tolerance is red. Run it yourself with `node gate.cjs`.
+
+**Changing the factory itself** (the rulebook in `CLAUDE.md`, the checks, the
+tolerances, the schedule) is not a factory task. Ask Claude Code on this PC.
+
+---
+
 Chess where every piece is armed — and every weapon is a real chess principle
 turned into a gun. Play good chess and you literally shoot harder. Hot-seat, two
 humans, one screen, one file.
