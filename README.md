@@ -1,5 +1,7 @@
 # CHESS ARTILLERY
 
+Factory first ran on 2026-09-13.
+
 ## Running the factory
 
 This game is maintained by a *dark factory*: you write tasks in plain language,
