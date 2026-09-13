@@ -1,10 +1,10 @@
 # The same gate that runs on your PC, run by GitHub on every proposed change.
-# A red gate here blocks merging (branch protection requires this check).
+# Runs on every pushed branch, so every pull request from this repository carries
+# exactly one gate result. A red gate blocks merging (branch protection requires it).
 name: gate
 on:
-  pull_request:
   push:
-    branches: [main, 'claude/**']
+    branches: ['**']
 jobs:
   gate:
     name: gate
