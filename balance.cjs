@@ -25,7 +25,7 @@ const NAMES = ['CONFIG','newGame','beginTurn','advanceTurn','legalMoves','legalM
   'isCrippled','slideRange','sectorCenters','aimAt','canFire','canMovePiece','sqName','sqOfWorld',
   'worldOf','mkSq','fileOf','rankOf','buildSAN','weaponOf','findKing','positionKey','targetOptions',
   'damageProfile','gunsLive','kingArmed','fireCheckShots','batteryPartner','lineState','pawnIsChained',
-  'relRank','squareTint','fullTurn','pieceCount'];
+  'relRank','squareTint','fullTurn','pieceCount','pickMove','pickShot'];
 
 const CA = new Function(`${src}\n;return {${NAMES.join(',')}};`)();
 const { CONFIG, boot0 } = CA;
@@ -41,105 +41,11 @@ const bootGame = () => {
   return st;
 };
 
-/*═══════════════════════════════════════════════════════════════════════════
-  A bot that plays like a sane but unimaginative human: takes good material,
-  develops, respects the chess-culture bonuses (they are also damage bonuses),
-  and fires whenever a shot is clearly worth more than nothing.
-═══════════════════════════════════════════════════════════════════════════*/
-const VAL = { p:1, n:3, b:3.2, r:5, q:9, k:0 };
 const { mkSq, fileOf, rankOf, worldOf, weaponOf, damageProfile, targetOptions,
         canFire, legalMoves, applyMove, advanceTurn, resolveShot, findKing, lineState } = CA;
-
-function moveScore(g, m) {
-  const p = g.pieces[g.board[m.from]];
-  if (!p) return -1e9;
-  let s = 0;
-  if (m.capture != null) {
-    const t = g.pieces[m.capture];
-    if (t) {
-      const gain = VAL[t.type] * (0.35 + 0.65 * (t.hp / t.maxHp));
-      const recoil = g.settings.captureDamage
-        ? Math.min(t.hp, CONFIG.CAPTURE_RECOIL_CAP_FRACTION * p.maxHp) : 0;
-      const cost = recoil >= p.hp ? VAL[p.type] * 1.4 : VAL[p.type] * (recoil / p.maxHp) * 0.9;
-      s += gain - cost + (m.enPassant ? 0.6 : 0);
-    }
-  }
-  const f = fileOf(m.to), r = rankOf(m.to);
-  s += 0.11 * (3.5 - Math.abs(f - 3.5)) / 3.5 + 0.05 * (3.5 - Math.abs(r - 3.5)) / 3.5;
-  const rel = p.color === 'w' ? r : 7 - r;
-  if (p.type === 'p') s += 0.06 * rel;
-  if (m.promote) s += 7;
-  if (m.castle) s += 0.5;
-  if (p.type === 'r') {
-    s += Math.max(lineState(g, m.to, p.color, true).mult, lineState(g, m.to, p.color, false).mult) * 0.25;
-    if (rel === 6) s += 0.4;
-  }
-  if (p.type === 'n') { if (rel === 4 || rel === 5) s += 0.45; if (f === 0 || f === 7) s -= 0.35; }
-  if (p.type === 'b' && [mkSq(1,1),mkSq(6,1),mkSq(1,6),mkSq(6,6)].includes(m.to)) s += 0.5;
-  if (p.type === 'q' && Math.floor(g.ply/2)+1 < CONFIG.BONUS.QUEEN_EARLY_UNTIL) s -= 0.35;
-  return s + Math.random() * 0.22;
-}
-
-const pickMove = (g) => {
-  const ms = legalMoves(g, g.turn);
-  if (!ms.length) return null;
-  let best = null, bs = -1e9;
-  for (const m of ms) { const s = moveScore(g, m); if (s > bs) { bs = s; best = m; } }
-  return best;
-};
-
-/** expected worth of a shot, mutating nothing */
-function shotValue(g, p, o) {
-  const w = weaponOf(p, g);
-  if (!w) return 0;
-  let v = 0, list = [];
-  if (w.prongs > 0) {
-    const R = CONFIG.BONUS.KNIGHT_PRONG_RADIUS;
-    list = Object.values(g.pieces)
-      .filter(q => q.color !== p.color && q.type !== 'k')
-      .map(q => { const [x,,z] = worldOf(q.sq);
-                  return { q, d: Math.hypot(x - o.sim.impact.x, z - o.sim.impact.z) }; })
-      .filter(e => e.d <= R).sort((a,b) => a.d - b.d).slice(0, w.prongs)
-      .map((e,i) => ({ q: e.q, dmg: Math.round(damageProfile(g,p,{targetSq:e.q.sq}).total
-                        * (i > 0 ? CONFIG.BONUS.KNIGHT_PRONG_FALLOFF : 1)) }));
-  } else {
-    list = o.sim.hits.map(h => g.pieces[h.id]).filter(Boolean)
-      .map(q => ({ q, dmg: damageProfile(g, p, { targetSq: q.sq }).total }));
-  }
-  const score = (q, raw) => {
-    if (q.type === 'k') return 0;
-    let d = raw;
-    if (q.color === p.color) d *= CONFIG.FRIENDLY_FIRE_MULT;
-    const eff = Math.min(d, q.hp);
-    const worth = VAL[q.type] * (eff / q.maxHp) + (eff >= q.hp ? VAL[q.type] * 0.55 : 0);
-    return q.color === p.color ? -worth * 1.25 : worth;
-  };
-  for (const { q, dmg } of list) v += score(q, dmg);
-  if (w.splashSquares > 0 && w.splashDamage > 0) {
-    const isq = CA.sqOfWorld(o.sim.impact.x, o.sim.impact.z);
-    if (isq >= 0) for (const q of Object.values(g.pieces)) {
-      if (list.some(e => e.q.id === q.id)) continue;
-      if (Math.max(Math.abs(fileOf(q.sq)-fileOf(isq)), Math.abs(rankOf(q.sq)-rankOf(isq))) <= w.splashSquares)
-        v += score(q, w.splashDamage);
-    }
-  }
-  return v;
-}
-
-function pickShot(g) {
-  let best = null, bv = 0.05;
-  for (const p of Object.values(g.pieces)) {
-    if (!canFire(g, p)) continue;
-    const w = weaponOf(p, g); if (!w) continue;
-    const arcs = w.arcBand === 'both' ? ['flat','lob'] : [w.arcBand === 'lob' ? 'lob' : 'flat'];
-    for (const arc of arcs) for (const o of targetOptions(g, p.id, arc)) {
-      if (o.status !== 'clear' && w.prongs === 0) continue;
-      const v = shotValue(g, p, o);
-      if (v > bv) { bv = v; best = { p, o }; }
-    }
-  }
-  return best;
-}
+// The bot itself lives in the game (section 8b), so the opponent a player faces
+// and the one these numbers describe are the same code.
+const { pickMove, pickShot } = CA;
 
 const TYPES = ['p','n','b','r','q','k'];
 

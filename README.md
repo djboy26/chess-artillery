@@ -151,6 +151,15 @@ button to forget. The piece that fires cannot be the piece that moves.
 
 ---
 
+**Playing the computer.** Settings → Opponent. By default the computer plays
+Black, so you sit down as White and it answers every move on its own, shots
+included. It is the same one-ply bot that plays the self-play games behind the
+balance numbers: takes material, develops, fires when a shot is clearly worth
+it, and cannot see mate coming. The board stays on your side, and Undo takes
+back your last turn *and* its reply. Choose "two humans" for hot-seat.
+
+---
+
 ## The eight rules
 
 1. **Normal chess.** Normal board, normal moves, normal draws.
@@ -497,7 +506,7 @@ shot matching what actually fires across all five weapons and both arcs.
 
 ## Not implemented
 
-No AI, no netcode, no accounts, no menus. Desktop only (no touch, assumes ≥980px).
+No netcode, no accounts, no menus. Desktop only (no touch, assumes ≥980px).
 First load needs network access to esm.sh and unpkg; in-browser Babel is fine for
 a single-file MVP but is not how you would ship this.
 
