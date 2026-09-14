@@ -1350,6 +1350,17 @@ function resolveShot(st, shooterId, sim) {
     }
   }
 
+  // A shot can leave the shooter's own side with no legal move at all: friendly
+  // fire or recoil kills the last piece that could move, or removes a blocker so
+  // the king is suddenly exposed. The turn cannot continue, so the position is
+  // settled the way chess settles it: no moves in check is mate, otherwise
+  // stalemate. (Check shots never come through here; they resolve in advanceTurn.)
+  const side = shooter.color;
+  if (!st.gameOver && legalMoves(st, side).length === 0) {
+    if (inCheck(st, side)) endGame(st, other(side), 'checkmate');
+    else                   endGame(st, null, 'stalemate');
+  }
+
   if (!sim.offBoard) {
     fx(st,'blast',{x:sim.impact.x, y:Math.max(0.05,sim.impact.y), z:sim.impact.z,
                    power:w.blast, color:w.tracer});

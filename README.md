@@ -136,7 +136,10 @@ a ply early. Then it plays random games — half with the guns hot, half with th
 cold — and insists every ending is one of the five the game knows how to reach
 and that the board actually agrees with the reason given.
 
-**It found one.** A checkmate delivered on the hundredth quiet ply was being
+**It found two.** A shot can leave the shooter's own side with no legal move
+at all (friendly fire on the last mobile piece, or a blocker removed so the king
+is suddenly exposed); the game used to freeze there. It now ends as chess would
+end it: mate if in check, otherwise stalemate. And a checkmate delivered on the hundredth quiet ply was being
 scored as a draw by the fifty-move rule. Chess says a mate is a mate: the board
 position is now settled before either draw counter is consulted.
 ---
