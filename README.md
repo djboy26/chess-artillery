@@ -298,14 +298,14 @@ locked target while aiming:
 
 | Piece | What you see |
 | --- | --- |
-| ♙ Pawn | Twin-barrel chain gun with a magazine, canted to its firing diagonal |
+| ♙ Pawn | Short single-barrel chain gun, canted to its firing diagonal |
 | ♘ Knight | Stubby mortar tube on a bipod, canted up — it only ever lobs |
 | ♗ Bishop | Long sniper rail with a glowing optic down the diagonal |
 | ♖ Rook | Heavy railgun run through the tower, with bracing struts |
 | ♕ Queen | Howitzer on a turret ring, barrel elevated |
 | ♔ King | Nothing until he arms in the endgame, then a short last-stand piece |
 
-Each muzzle glows in that weapon's tracer colour, so you can read the whole board's
+Guns are deliberately small so the chess piece stays the point; each muzzle glows in that weapon's tracer colour, so you can still read the whole board's
 armament at a glance. It is all cosmetic: `CONFIG.HEIGHT` and `PIECE_RADIUS` (the
 collision model) are untouched, so ballistics and cover are exactly as measured.
 
