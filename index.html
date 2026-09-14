@@ -1581,7 +1581,7 @@ const THEMES = {
          red:'#b3402e', green:'#5e8a4e' },
     d3:{ wBody:'#fbf6ea', wTrim:'#ffffff', bBody:'#7b5f45', bTrim:'#a1815f',
          tileL:'#f0e7d6', tileD:'#c3ab8c', frame:'#e2d6c0', bg:'#efe9dd',
-         metal:'#8d8578', coord:'#9c8a70' },
+         metal:'#8d8578', coord:'#9c8a70', rimW:'#6a5c4a', rimB:'#3a2c20' },
     lit:{ sky:'#fffaf0', ground:'#c8b79c', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#ffe2c0' } },
 
   slate: { label:'Slate',
@@ -1590,7 +1590,7 @@ const THEMES = {
          red:'#a8433c', green:'#4d7c56' },
     d3:{ wBody:'#fcfdfe', wTrim:'#ffffff', bBody:'#565f6b', bTrim:'#7e8794',
          tileL:'#e8ebef', tileD:'#a8b0ba', frame:'#d5d9df', bg:'#eceef1',
-         metal:'#7d848c', coord:'#8b939d' },
+         metal:'#7d848c', coord:'#8b939d', rimW:'#4d545c', rimB:'#22262c' },
     lit:{ sky:'#ffffff', ground:'#b9c0c9', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#d9e6f2' } },
 
   walnut: { label:'Walnut',
@@ -1599,7 +1599,7 @@ const THEMES = {
          red:'#d05c47', green:'#7faa5e' },
     d3:{ wBody:'#efdfc4', wTrim:'#fff6e4', bBody:'#4a3122', bTrim:'#7a5537',
          tileL:'#c9a878', tileD:'#6b4830', frame:'#2b1d13', bg:'#241c16',
-         metal:'#b8a58c', coord:'#a08a68' },
+         metal:'#b8a58c', coord:'#a08a68', rimW:'#3a2818', rimB:'#e9d6b6' },
     lit:{ sky:'#ffe9c8', ground:'#3a2c20', hemi:0.75, amb:0.30, dir:1.55, fill:0.45, fillCol:'#ffca86' } },
 
   sage: { label:'Sage',
@@ -1608,7 +1608,7 @@ const THEMES = {
          red:'#a8483a', green:'#3f7a4e' },
     d3:{ wBody:'#fbfcf8', wTrim:'#ffffff', bBody:'#4d5c48', bTrim:'#74856d',
          tileL:'#e6ede0', tileD:'#a3b39a', frame:'#cdd7c6', bg:'#e9eee6',
-         metal:'#7e8878', coord:'#8b9683' },
+         metal:'#7e8878', coord:'#8b9683', rimW:'#4f5a4c', rimB:'#232a22' },
     lit:{ sky:'#fbfff8', ground:'#bcc7b4', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#dcf0d4' } },
 
   carbon: { label:'Carbon',
@@ -1617,7 +1617,7 @@ const THEMES = {
          red:'#d95f4c', green:'#6fb07a' },
     d3:{ wBody:'#e8ebef', wTrim:'#ffffff', bBody:'#3a4048', bTrim:'#5f6874',
          tileL:'#8f97a1', tileD:'#43494f', frame:'#20242a', bg:'#15171a',
-         metal:'#9aa2ab', coord:'#79818b' },
+         metal:'#9aa2ab', coord:'#79818b', rimW:'#2b2f35', rimB:'#c5ccd4' },
     lit:{ sky:'#dfe8f2', ground:'#22262b', hemi:0.70, amb:0.28, dir:1.65, fill:0.50, fillCol:'#9fc4e8' } },
 };
 const THEME_ORDER = ['ivory','slate','sage','walnut','carbon'];
@@ -1739,19 +1739,19 @@ function StatusRing({ p, game }) {
   if (!w && !cooling) return null;
   const frac = cooling ? 1 - p.cooldown/(w?w.cooldown:CONFIG.WEAPONS[p.type].cooldown) : 1;
   const geo = cooling
-    ? flatRing(0.315,0.365,48, Math.PI/2, Math.max(0.001, frac*Math.PI*2))
-    : flatRing(0.315,0.365,48, 0, Math.PI*2);
+    ? flatRing(0.335,0.355,48, Math.PI/2, Math.max(0.001, frac*Math.PI*2))
+    : flatRing(0.335,0.355,48, 0, Math.PI*2);
   const cdTex = cooling ? textTex(String(p.cooldown), '#96700e') : null;
   return (
     <>
       {cooling && (
-        <mesh geometry={flatRing(0.315,0.365,48,0,Math.PI*2)} raycast={noPick} renderOrder={2}
+        <mesh geometry={flatRing(0.335,0.355,48,0,Math.PI*2)} raycast={noPick} renderOrder={2}
               rotation={[-Math.PI/2,0,0]} position={[0,0.013,0]}>
-          <meshBasicMaterial color="#cbbda4" transparent opacity={0.85} depthWrite={false} />
+          <meshBasicMaterial color="#cbbda4" transparent opacity={0.45} depthWrite={false} />
         </mesh>)}
       <mesh geometry={geo} raycast={noPick} renderOrder={3} rotation={[-Math.PI/2,0,0]} position={[0,0.015,0]}>
         <meshBasicMaterial color={cooling?COL.gold:ready?COL.accent:'#b9a98e'}
-          transparent opacity={cooling?0.95:ready?0.9:0.45} depthWrite={false} />
+          transparent opacity={cooling?0.7:ready?0.55:0.3} depthWrite={false} />
       </mesh>
       {cdTex && (
         <sprite position={[0.34, 0.16, 0.34]} scale={[0.30,0.11,1]} renderOrder={33}>
@@ -1776,7 +1776,7 @@ const WG = {
   // units reads as a speck rather than a gun.
   barrelL:  new THREE.CylinderGeometry(0.050, 0.056, 0.58, 14),   // rook railgun
   barrelM:  new THREE.CylinderGeometry(0.046, 0.052, 0.48, 14),   // queen howitzer
-  barrelS:  new THREE.CylinderGeometry(0.030, 0.033, 0.30, 12),   // pawn / king
+  barrelS:  new THREE.CylinderGeometry(0.040, 0.044, 0.30, 12),   // pawn / king
   mortar:   new THREE.CylinderGeometry(0.078, 0.086, 0.34, 16),   // knight tube
   lens:     new THREE.CylinderGeometry(0.070, 0.046, 0.075, 18),  // bishop optic
   scope:    new THREE.CylinderGeometry(0.028, 0.028, 0.44, 12),   // bishop rail
@@ -1788,6 +1788,7 @@ const WG = {
 };
 
 /** The gun a piece carries, mounted and aimed. */
+const GUN_SCALE = 0.65;   // guns are cosmetic; smaller reads cleaner at play distance
 function PieceWeapon({ p, game, aimYaw }) {
   const w = weaponOf(p, game);
   if (!w) return null;                    // unarmed king shows nothing
@@ -1806,17 +1807,14 @@ function PieceWeapon({ p, game, aimYaw }) {
   return (
     <group rotation={[0, -yaw, 0]}>
       {p.type === 'p' && (
-        <group position={[0, h*0.80, 0]}>
+        <group position={[0, h*0.80, 0]} scale={GUN_SCALE}>
           <mesh geometry={WG.mount} scale={[0.8,0.75,0.8]}>{gun}</mesh>
-          {[-0.045, 0.045].map((dx,i)=>(
-            <mesh key={i} geometry={WG.barrelS} position={[dx, 0.015, -0.17]}
-                  rotation={[Math.PI/2,0,0]}>{gun}</mesh>))}
+          <mesh geometry={WG.barrelS} position={[0, 0.015, -0.17]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
           <mesh geometry={WG.bead} position={[0, 0.015, -0.30]} scale={[0.7,0.7,0.7]}>{hot}</mesh>
-          <mesh geometry={WG.mag} position={[0,-0.075,0.06]} rotation={[0.3,0,0]}>{gun}</mesh>
         </group>)}
 
       {p.type === 'n' && (
-        <group position={[0, h*0.62, 0]}>
+        <group position={[0, h*0.62, 0]} scale={GUN_SCALE}>
           {/* mortar tube, canted up — it only ever lobs */}
           <mesh geometry={WG.mortar} position={[0, 0.13, -0.07]} rotation={[-0.95,0,0]}>{gun}</mesh>
           <mesh geometry={WG.muzzle} position={[0, 0.26, -0.16]} rotation={[-0.95,0,0]}>{hot}</mesh>
@@ -1825,7 +1823,7 @@ function PieceWeapon({ p, game, aimYaw }) {
         </group>)}
 
       {p.type === 'b' && (
-        <group position={[0, h*0.60, 0]}>
+        <group position={[0, h*0.60, 0]} scale={GUN_SCALE}>
           {/* long sniper rail + glowing optic */}
           <mesh geometry={WG.scope} position={[0, 0.04, -0.20]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
           <mesh geometry={WG.lens} position={[0, 0.04, -0.44]} rotation={[Math.PI/2,0,0]}>{hot}</mesh>
@@ -1834,7 +1832,7 @@ function PieceWeapon({ p, game, aimYaw }) {
         </group>)}
 
       {p.type === 'r' && (
-        <group position={[0, h*0.70, 0]}>
+        <group position={[0, h*0.70, 0]} scale={GUN_SCALE}>
           {/* heavy railgun through the tower */}
           <mesh geometry={WG.mount} position={[0,0,0.03]}>{gun}</mesh>
           <mesh geometry={WG.barrelL} position={[0, 0.005, -0.30]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
@@ -1845,7 +1843,7 @@ function PieceWeapon({ p, game, aimYaw }) {
         </group>)}
 
       {p.type === 'q' && (
-        <group position={[0, h*0.66, 0]}>
+        <group position={[0, h*0.66, 0]} scale={GUN_SCALE}>
           {/* howitzer on a turret ring, elevated */}
           <mesh geometry={WG.mount} scale={[1.25,0.9,1.25]}>{gun}</mesh>
           <mesh geometry={WG.barrelM} position={[0, 0.14, -0.20]} rotation={[-0.42,0,0]}>{gun}</mesh>
@@ -1854,7 +1852,7 @@ function PieceWeapon({ p, game, aimYaw }) {
         </group>)}
 
       {p.type === 'k' && (
-        <group position={[0, h*0.52, 0]}>
+        <group position={[0, h*0.52, 0]} scale={GUN_SCALE}>
           {/* short last-stand piece, only exists once he is armed */}
           <mesh geometry={WG.mount} scale={[0.75,0.65,0.75]}>{gun}</mesh>
           <mesh geometry={WG.barrelS} position={[0, 0.02, -0.17]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
@@ -1863,7 +1861,7 @@ function PieceWeapon({ p, game, aimYaw }) {
     </group>);
 }
 
-function PieceCrest({ p, body, trim }) {
+function PieceCrest({ p, body, trim, rim }) {
   const h = CONFIG.HEIGHT[p.type];
   const bodyMat = <meshStandardMaterial color={body} roughness={p.color==='w'?0.44:0.40}
                     metalness={p.color==='w'?0.06:0.16} />;
@@ -1892,9 +1890,12 @@ function PieceCrest({ p, body, trim }) {
   if (p.type==='n') {
     // The head is only readable in profile, and both players sit down the z axis —
     // so the nose points along x (White right, Black left), never at the camera.
-    return (
-      <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]}
-            rotation={[0, p.color==='w' ? 0 : Math.PI, 0]}>{bodyMat}</mesh>);
+    const rot = [0, p.color==='w' ? 0 : Math.PI, 0];
+    return (<>
+      <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]} rotation={rot} raycast={noPick} scale={[1.07,1.06,1.16]}>
+        <meshBasicMaterial color={rim} side={THREE.BackSide} /></mesh>
+      <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]} rotation={rot}>{bodyMat}</mesh>
+    </>);
   }
   if (p.type==='b') return <mesh geometry={GEO.pip} position={[0, h*0.99, 0]}>{trimMat}</mesh>;
   return null;
@@ -1904,19 +1905,24 @@ function PieceMesh({ p, game, selected, hovered, eligible, dim, aimYaw, onPick, 
   const [x,,z] = worldOf(p.sq);
   const body = p.color==='w' ? COL.wBody : COL.bBody;
   const trim = p.color==='w' ? COL.wTrim : COL.bTrim;
+  const rim  = p.color==='w' ? COL.rimW  : COL.rimB;   // thin outline so the piece reads on any tile
   const glow = selected ? COL.accent : eligible ? '#8a4418' : '#000';
   return (
     <group position={[x,0,z]}
       onClick={(e)=>{e.stopPropagation(); onPick(p.id);}}
       onPointerOver={(e)=>{e.stopPropagation(); onHover(p.id,e);}}
       onPointerOut={(e)=>{e.stopPropagation(); onHover(null,e);}}>
+      {/* inverted hull: a slightly larger back-face copy draws a thin rim around the silhouette */}
+      <mesh geometry={GEO.body[p.type]} raycast={noPick} scale={[1.06,1.035,1.06]} position={[0,0.003,0]}>
+        <meshBasicMaterial color={rim} side={THREE.BackSide} transparent={dim} opacity={dim?0.30:1} />
+      </mesh>
       <mesh geometry={GEO.body[p.type]}>
         <meshStandardMaterial color={body} roughness={p.color==='w'?0.44:0.40}
           metalness={p.color==='w'?0.06:0.16}
           transparent={dim} opacity={dim?0.30:1}
           emissive={glow} emissiveIntensity={selected?0.5:eligible?0.42:0} />
       </mesh>
-      <PieceCrest p={p} body={body} trim={trim} />
+      <PieceCrest p={p} body={body} trim={trim} rim={rim} />
       <PieceWeapon p={p} game={game} aimYaw={aimYaw} />
       <StatusRing p={p} game={game} />
       {selected && (
