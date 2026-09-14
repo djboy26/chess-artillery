@@ -99,6 +99,46 @@ It asserts, at every position: no offered move leaves your own king in check,
 per-piece and whole-side move generation agree, and you are never in check
 immediately after your own move.
 
+`previewcheck.cjs` guards the other half of the promise: that the aim HUD never
+lies. It plays random games and fires a random shot on nearly every turn. Before
+each shot it writes down exactly what the preview promised — which pieces get
+hit, for how much, and which of them die — then fires and compares that against
+what happened to every piece on the board, splash and friendly fire included. Any
+mismatch prints the game, ply, shooter, target square and the promised-versus-
+actual numbers, and the run exits red. Run it with `node previewcheck.cjs`; it
+takes the same `--games N` and `--seed S` switches as the rules fuzz, and 100
+games take about twelve seconds.
+
+> 100 games · 13,637 shots audited · **232,556 piece outcomes compared** · no mismatches
+
+
+### The draws are chess draws too
+
+`chesscheck.cjs` never looked at how a game *ends*, and about half of all bot
+games end in a draw — so that is exactly where a wrong rule would hurt most.
+`drawcheck.cjs` covers it:
+
+```bash
+node drawcheck.cjs               # 100 games, about 7 seconds
+node drawcheck.cjs --games 40 --seed 7
+```
+
+> 100 games · stalemate, checkmate, threefold repetition and the fifty-move rule
+> all reached · no violations
+
+It builds positions by hand to check that two positions count as the same one
+only when the pieces, the side to move, the castling rights *and* the en passant
+square all match; that a shuffle draws on the third sighting of a position and
+not the second; that no moves without check is a draw and never a loss; and that
+the fifty-move counter resets on every pawn move, capture, en passant and
+promotion, does not reset on castling, and draws exactly at the limit rather than
+a ply early. Then it plays random games — half with the guns hot, half with them
+cold — and insists every ending is one of the five the game knows how to reach
+and that the board actually agrees with the reason given.
+
+**It found one.** A checkmate delivered on the hundredth quiet ply was being
+scored as a draw by the fifty-move rule. Chess says a mate is a mate: the board
+position is now settled before either draw counter is consulted.
 ---
 
 ## The turn — there is no "end turn"
@@ -184,7 +224,7 @@ further body in the beam takes 60% of the last. 25 base, cd 2.
 **♘ Knight · Fork Gun.** The only weapon with **free aim** — it lobs, so cover is irrelevant and it can fire anywhere in range. That freedom is why it carries the longest reload. The shell
 **splits and hits the two nearest enemies** within 1.5 squares of impact. ×2 on an
 outpost (opponent's 5th/6th rank), ×0.5 on the a- or h-file; second prong at 50%.
-**Cannot fire inside 2.2 squares** — close it down and its gun is dead. 18 base, cd 4.
+**Cannot fire inside 2.2 squares** — close it down and its gun is dead. 18 base, cd 7.
 
 **♖ Rook · Railgun.** Flat, fast, stopped by the first thing in the way, and
 **fires only along its true rank and file**. Damage is
@@ -211,7 +251,8 @@ all directions, cd 2.
 ## Balance, measured by self-play
 
 `balance.cjs` extracts the rules layer out of `index.html` and plays bot-vs-bot
-games headlessly in Node — ~75ms a game, so any retune can be re-measured
+games headlessly in Node — about 0.3s a game as the game stands today (120 games
+in 37s on the factory's cloud machine), so any retune can be re-measured
 immediately:
 
 ```bash
@@ -226,7 +267,11 @@ swept without editing the game:
 node balance.cjs 30 "WEAPONS.p.maxRange=5,HP.k=200"
 ```
 
-### What self-play found, and what changed
+### What self-play found, and what changed — the history
+
+*Each number below is what was measured **at the time that fix was made**. This
+table is the story of how the game got here, not a description of how it plays
+today. For today's game, read **Where it landed** underneath it.*
 
 | # | Measured problem | Fix |
 | --- | --- | --- |
@@ -239,48 +284,83 @@ node balance.cjs 30 "WEAPONS.p.maxRange=5,HP.k=200"
 | 7 | A bishop one-shot a pawn, knight *or* bishop ⇒ total annihilation, 50% draws | **Double all piece HP** |
 | 8 | Rook was the weakest gun: 6% of shots at 28 dmg | Blocked penalty 0.5→0.75, cd 3→2 |
 | 9 | Bishop: top damage in the game, **0%** survival | Pierce falloff 0.6 per body |
+| 10 | Knight *still* 49% of all shots — the game read as a knight game | cd 4→7 (share → 37%) |
 
-**The counterintuitive one is #7.** Doubling HP made games *shorter* (101 → 55
-plies) and far more decisive (draws 50% → 7.5%), because material now survives to
-form a real endgame instead of grinding down to bare kings that can only shuffle
-and repeat.
+**The counterintuitive one is #7.** Doubling HP made games *shorter at the time*
+(101 → 55 plies) and far more decisive (draws 50% → 7.5%), because material now
+survived to form a real endgame instead of grinding down to bare kings that can
+only shuffle and repeat. Everything changed since has pushed both numbers back
+the other way: today's games are long again (~99 plies) and draws are back above
+half. That is the headline finding of the current measurement below.
 
-### Where it landed
+### Where it landed — today's numbers
 
-| Piece | Share of shots | Dmg/shot | Survival | Role |
-| --- | --- | --- | --- | --- |
-| ♘ Knight | 40% | 17.7 | 59% | The workhorse — cheap, always has a shot |
-| ♗ Bishop | 32% | 43.9 | 3% | Glass cannon, top damage, dies for it |
-| ♖ Rook | 10% | 28.0 | 14% | Punishes open lines |
-| ♕ Queen | 9% | 57.7 | 25% | Rare, decisive |
-| ♙ Pawn | 8% | 13.1 | 11% | Chip damage when better guns reload |
+*Measured on 2026-09-13 over the 120 seeded games that the drift guard checks, then
+updated on 2026-09-14 for the knight's slower reload (knight and pawn rows, headline;
+the other rows moved by a point or two):
+`node balance-guard.cjs` for the shares and survival, `node balance.cjs 120` over
+the same games for the damage columns. Both are read-only, and the seeded set
+reproduces exactly, so anyone can re-run these and get the same table. (Plain
+`node balance.cjs 120` picks its own random games, so it wanders a point or two
+either side of these.)*
 
-Games average ~55 plies, 7.5% draws, both win conditions live.
+| Piece | Share of shots | Shots/game | Dmg/shot | Survival | Role |
+| --- | --- | --- | --- | --- | --- |
+| ♘ Knight | 37% | 11.0 | 19.2 | 30% | Still the workhorse, but it reloads slowly now |
+| ♗ Bishop | 17% | 5.7 | 41.7 | 4% | Glass cannon: second-hardest hitter, almost never survives |
+| ♙ Pawn | 18% | 5.7 | 12.8 | 8% | Chip damage while the better guns reload |
+| ♕ Queen | 9% | 3.2 | 59.2 | 25% | Rare, and the hardest single shot in the game |
+| ♔ King | 9% | 2.9 | 18.1 | 76% | Arms only in the endgame, and usually lives to the end |
+| ♖ Rook | 4% | 1.4 | 42.5 | 5% | Hits hard, almost never has a clear line to hit down |
+
+Headline: games average **107 plies**, and end **58% draws, white 28%, black 14%**.
+A shot is taken on 39% of the turns where one is available. Both win conditions
+are technically live, but only one of them actually happens: all 58 decisive games
+ended with a king drained to 0 HP, and none in checkmate.
 
 ### Still open
 
-- **The knight holds 40% of shots.** It deals the *least* per shot, so it reads as
-  the machine gun rather than the best gun — but it is the most-used piece by a
-  wide margin because it is the only weapon never blocked.
-- **Bishop survival is 3%.** It is the top damage dealer and gets focused down for
-  it. Arguably correct, still extreme.
-- **White wins 62%.** Higher than chess's ~55%; partly first-move advantage
-  (white also shoots first), partly a symmetric greedy bot.
-- **Checkmate is still rare in bot games (~1 in 40).** My bot is 1-ply greedy and
-  cannot see mate, so this number says more about the bot than the design. Real
-  players should find far more.
-- **The rook battery has never once fired in self-play.** Two rooks doubled with a
-  clear line between them simply does not arise. It may be dead content.
+*Same measurement as the table above.*
+
+- **More than half of all games are draws (58% after the knight's slower reload, 52%
+  before it)**, and repetition is doing most of it: before that change, of
+  120 games, 42 ended by threefold repetition, 14 by the fifty-move rule and 5 by
+  stalemate. Games run ~99 plies, nearly twice the 55 that the HP change once
+  bought. Whatever the draw rate should be, it is no longer the 7.5% this README
+  used to advertise.
+- **The knight holds 37% of shots**, down from 49% now that its reload is 7 turns.
+  It still deals the *least* per shot, so it reads as the machine gun rather than the
+  best gun, and it is still the most-used piece because it is the only weapon never
+  blocked. The shots it no longer takes went mostly to pawns and bishops.
+- **Bishop survival is 4%.** It is the second-biggest gun after the queen and gets
+  focused down for it. Arguably correct, still extreme.
+- **The rook has nearly stopped firing.** 1.4 shots a game, a live target on only
+  5% of the turns it is loaded — though it does land ~42 when a line finally
+  opens. It is the rarest weapon on the board.
+- **White wins 28%, black 14%.** The first-move advantage still shows (white also
+  shoots first), but it is no longer the story: the most likely result is a draw,
+  not a white win. The old "white wins 62%" is gone.
+- **Checkmate has all but vanished from bot games:** none at all in the seeded
+  120, one in a separate unseeded 120. The bot is 1-ply greedy and cannot see
+  mate, and kings now run out of HP long before they are mated, so this says more
+  about the bot than the design. Real players should find more.
+- **The rook battery has still never fired** in self-play (0.00 a game), and
+  neither has en passant (0.00 a game). Two rooks doubled with a clear line
+  between them simply does not arise. It may be dead content.
 
 ### Balance numbers worth knowing
 
+*The four figures below come from the game's settings, not from self-play, so
+they are exact. What each weapon actually averages once cover and cooldowns get
+in the way is the Dmg/shot column above.*
+
 - **Rook battery on an open file: 140** — still the biggest number, but against
-  180 HP queens and 120 HP rooks it is now a heavy blow rather than a one-shot.
-  It costs both rooks their cooldown.
+  180 HP queens and 120 HP rooks it is a heavy blow rather than a one-shot. It
+  costs both rooks their cooldown. In 120 measured games it has never happened.
 - Open-file rook alone: 70 against 120 HP pieces.
 - Fianchettoed bishop with the pair: **50** on its colour (capped at ×2), 0 off it.
-- HP is now `pawn 40 · knight 70 · bishop 80 · rook 120 · queen 180 · king 150`,
-  which is what gives the two-to-three-shot kills the design was aiming for.
+- HP is `pawn 40 · knight 70 · bishop 80 · rook 120 · queen 180 · king 150`, which
+  is what gives the two-to-three-shot kills the design was aiming for.
 
 ---
 
