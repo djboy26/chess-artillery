@@ -323,7 +323,7 @@ export const CONFIG = {
   //           shots start skimming over short pieces.
   WEAPONS: {
     p: { lineLocked:true, label:'Chain Gun',   damage:10, cooldown:1, maxRange:4.5,        sector:'pawnDiag',   sectorHalfDeg:30, arcBand:'flat', gravity:1, speed:10,   muzzleFrac:0.62, splashSquares:0, splashDamage:0,  hitscan:false, ignoresCover:false, prongs:0, tracer:'#d99512', size:0.070, blast:0.7 },
-    n: { label:'Fork Gun',    damage:18, cooldown:4, maxRange:5, minRange:2.2,        sector:'any',        sectorHalfDeg:180, arcBand:'lob',  gravity:1, speed:null, muzzleFrac:0.80, splashSquares:0, splashDamage:0,  hitscan:false, ignoresCover:true,  prongs:2, tracer:'#4f8f3c', size:0.095, blast:1.5 },
+    n: { label:'Fork Gun',    damage:18, cooldown:7, maxRange:5, minRange:2.2,        sector:'any',        sectorHalfDeg:180, arcBand:'lob',  gravity:1, speed:null, muzzleFrac:0.80, splashSquares:0, splashDamage:0,  hitscan:false, ignoresCover:true,  prongs:2, tracer:'#4f8f3c', size:0.095, blast:1.5 },
     b: { lineLocked:true, label:'Sniper Beam', damage:25, cooldown:2, maxRange:Infinity, sector:'diagonal',   sectorHalfDeg:26, arcBand:'flat', gravity:0, speed:null, muzzleFrac:0.42, splashSquares:0, splashDamage:0,  hitscan:true,  ignoresCover:false, prongs:0, tracer:'#7a4fb5', size:0.060, blast:0.8 },
     r: { lineLocked:true, label:'Railgun',     damage:35, cooldown:1, maxRange:Infinity, sector:'orthogonal', sectorHalfDeg:26, arcBand:'flat', gravity:0, speed:26,   muzzleFrac:0.55, splashSquares:0, splashDamage:0,  hitscan:false, ignoresCover:false, prongs:0, tracer:'#c25a1e', size:0.105, blast:1.2 },
     q: { label:'Artillery',   damage:45, cooldown:4, maxRange:6,        sector:'any',        sectorHalfDeg:180, arcBand:'both', gravity:1, speed:null, muzzleFrac:0.80, splashSquares:1, splashDamage:20, hitscan:false, ignoresCover:false, prongs:0, tracer:'#b8306a', size:0.125, blast:2.0 },
@@ -1441,6 +1441,17 @@ function beginTurn(st) {
   if (st.gameOver) return;
   say(st,'sys',`— ${SIDE[c]} to move —`);
 
+  // Draws are exactly chess draws: no stalemate bleed, no sudden-death timer.
+  // Mate and stalemate are settled FIRST: a game that is already finished on the
+  // board cannot be taken away by a counter. Chess says a move that gives mate
+  // gives mate even when it completes the fifty-move count.
+  const moves = legalMoves(st,c);
+  if (moves.length===0) {
+    if (inCheck(st,c)) endGame(st, other(c), 'checkmate');
+    else               endGame(st, null, 'stalemate');
+    return;
+  }
+
   const key = positionKey(st);
   st.posCounts[key] = (st.posCounts[key]||0) + 1;
   if (st.posCounts[key] >= CONFIG.REPETITION_DRAW) {
@@ -1450,13 +1461,6 @@ function beginTurn(st) {
     endGame(st, null, `the fifty-move rule`); return;
   }
 
-  // Draws are exactly chess draws: no stalemate bleed, no sudden-death timer.
-  const moves = legalMoves(st,c);
-  if (moves.length===0) {
-    if (inCheck(st,c)) endGame(st, other(c), 'checkmate');
-    else               endGame(st, null, 'stalemate');
-    return;
-  }
   if (st.ply === CONFIG.GUNS_LIVE_AFTER_MOVES*2)
     say(st,'sys',`GUNS LIVE — both sides have made ${CONFIG.GUNS_LIVE_AFTER_MOVES} moves. Weapons are hot.`);
   if (kingArmed(st) && !st.kingsArmedAnnounced) {
@@ -1899,7 +1903,7 @@ const THEMES = {
          red:'#b3402e', green:'#5e8a4e' },
     d3:{ wBody:'#fbf6ea', wTrim:'#ffffff', bBody:'#7b5f45', bTrim:'#a1815f',
          tileL:'#f0e7d6', tileD:'#c3ab8c', frame:'#e2d6c0', bg:'#efe9dd',
-         metal:'#8d8578', coord:'#9c8a70' },
+         metal:'#8d8578', coord:'#9c8a70', rimW:'#6a5c4a', rimB:'#3a2c20' },
     lit:{ sky:'#fffaf0', ground:'#c8b79c', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#ffe2c0' } },
 
   slate: { label:'Slate',
@@ -1908,7 +1912,7 @@ const THEMES = {
          red:'#a8433c', green:'#4d7c56' },
     d3:{ wBody:'#fcfdfe', wTrim:'#ffffff', bBody:'#565f6b', bTrim:'#7e8794',
          tileL:'#e8ebef', tileD:'#a8b0ba', frame:'#d5d9df', bg:'#eceef1',
-         metal:'#7d848c', coord:'#8b939d' },
+         metal:'#7d848c', coord:'#8b939d', rimW:'#4d545c', rimB:'#22262c' },
     lit:{ sky:'#ffffff', ground:'#b9c0c9', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#d9e6f2' } },
 
   walnut: { label:'Walnut',
@@ -1917,7 +1921,7 @@ const THEMES = {
          red:'#d05c47', green:'#7faa5e' },
     d3:{ wBody:'#efdfc4', wTrim:'#fff6e4', bBody:'#4a3122', bTrim:'#7a5537',
          tileL:'#c9a878', tileD:'#6b4830', frame:'#2b1d13', bg:'#241c16',
-         metal:'#b8a58c', coord:'#a08a68' },
+         metal:'#b8a58c', coord:'#a08a68', rimW:'#3a2818', rimB:'#e9d6b6' },
     lit:{ sky:'#ffe9c8', ground:'#3a2c20', hemi:0.75, amb:0.30, dir:1.55, fill:0.45, fillCol:'#ffca86' } },
 
   sage: { label:'Sage',
@@ -1926,7 +1930,7 @@ const THEMES = {
          red:'#a8483a', green:'#3f7a4e' },
     d3:{ wBody:'#fbfcf8', wTrim:'#ffffff', bBody:'#4d5c48', bTrim:'#74856d',
          tileL:'#e6ede0', tileD:'#a3b39a', frame:'#cdd7c6', bg:'#e9eee6',
-         metal:'#7e8878', coord:'#8b9683' },
+         metal:'#7e8878', coord:'#8b9683', rimW:'#4f5a4c', rimB:'#232a22' },
     lit:{ sky:'#fbfff8', ground:'#bcc7b4', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#dcf0d4' } },
 
   carbon: { label:'Carbon',
@@ -1935,7 +1939,7 @@ const THEMES = {
          red:'#d95f4c', green:'#6fb07a' },
     d3:{ wBody:'#e8ebef', wTrim:'#ffffff', bBody:'#3a4048', bTrim:'#5f6874',
          tileL:'#8f97a1', tileD:'#43494f', frame:'#20242a', bg:'#15171a',
-         metal:'#9aa2ab', coord:'#79818b' },
+         metal:'#9aa2ab', coord:'#79818b', rimW:'#2b2f35', rimB:'#c5ccd4' },
     lit:{ sky:'#dfe8f2', ground:'#22262b', hemi:0.70, amb:0.28, dir:1.65, fill:0.50, fillCol:'#9fc4e8' } },
 };
 const THEME_ORDER = ['ivory','slate','sage','walnut','carbon'];
