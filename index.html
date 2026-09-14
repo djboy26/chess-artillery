@@ -1441,6 +1441,17 @@ function beginTurn(st) {
   if (st.gameOver) return;
   say(st,'sys',`— ${SIDE[c]} to move —`);
 
+  // Draws are exactly chess draws: no stalemate bleed, no sudden-death timer.
+  // Mate and stalemate are settled FIRST: a game that is already finished on the
+  // board cannot be taken away by a counter. Chess says a move that gives mate
+  // gives mate even when it completes the fifty-move count.
+  const moves = legalMoves(st,c);
+  if (moves.length===0) {
+    if (inCheck(st,c)) endGame(st, other(c), 'checkmate');
+    else               endGame(st, null, 'stalemate');
+    return;
+  }
+
   const key = positionKey(st);
   st.posCounts[key] = (st.posCounts[key]||0) + 1;
   if (st.posCounts[key] >= CONFIG.REPETITION_DRAW) {
@@ -1450,13 +1461,6 @@ function beginTurn(st) {
     endGame(st, null, `the fifty-move rule`); return;
   }
 
-  // Draws are exactly chess draws: no stalemate bleed, no sudden-death timer.
-  const moves = legalMoves(st,c);
-  if (moves.length===0) {
-    if (inCheck(st,c)) endGame(st, other(c), 'checkmate');
-    else               endGame(st, null, 'stalemate');
-    return;
-  }
   if (st.ply === CONFIG.GUNS_LIVE_AFTER_MOVES*2)
     say(st,'sys',`GUNS LIVE — both sides have made ${CONFIG.GUNS_LIVE_AFTER_MOVES} moves. Weapons are hot.`);
   if (kingArmed(st) && !st.kingsArmedAnnounced) {
