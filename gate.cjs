@@ -1,7 +1,8 @@
 /**
  * THE GATE — one command, one verdict.
  *
- * Runs the chess-rules fuzz and the balance drift guard. Green means safe to
+ * Runs the chess-rules fuzz, the draw-rules check, the aim-preview honesty check
+ * and the balance drift guard. Green means safe to
  * ship. Red means do not ship, and the output above the verdict says why.
  *
  *   node gate.cjs           skips the run if nothing relevant changed since the last green
@@ -13,7 +14,7 @@ const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 
 const ROOT = __dirname;
-const INPUTS = ['index.html', 'chesscheck.cjs', 'balance.cjs', 'balance-guard.cjs', 'balance-baseline.json', 'gate.cjs'];
+const INPUTS = ['index.html', 'chesscheck.cjs', 'previewcheck.cjs', 'drawcheck.cjs', 'balance.cjs', 'balance-guard.cjs', 'balance-baseline.json', 'gate.cjs'];
 const STAMP = path.join(ROOT, '.claude', 'gate-pass');
 const force = process.argv.includes('--force');
 
@@ -37,6 +38,8 @@ if (!force && stamp === FP) {
 
 const STEPS = [
   ['Chess rules fuzz', 'chesscheck.cjs'],
+  ['Draw rules', 'drawcheck.cjs'],
+  ['Aim preview honesty', 'previewcheck.cjs'],
   ['Balance drift guard', 'balance-guard.cjs'],
 ];
 const t0 = Date.now();
