@@ -2538,54 +2538,6 @@ function Rail({ game, selectedId, onPick }) {
     </div>);
 }
 
-/**
- * Hover panel with the LIVE damage breakdown. The chess-culture bonuses are the
- * best part of the design and also the biggest risk — six conditional multipliers
- * are invisible math unless the player can see exactly why a rook just hit for 70.
- */
-function Tooltip({ game, hover }) {
-  if (!hover || !hover.id) return null;
-  const p = game.pieces[hover.id]; if(!p) return null;
-  const w = weaponOf(p, game), f = p.hp/p.maxHp;
-  const prof = w ? damageProfile(game, p) : null;
-  const x = Math.min(hover.x+16, window.innerWidth-246);
-  const y = Math.min(hover.y+16, window.innerHeight-280);
-  return (
-    <div className="tip" style={{left:x, top:y}}>
-      <div className="h">{GLYPH[p.color][p.type]} {SIDE[p.color]} {NAME[p.type]} · {sqName(p.sq)}</div>
-      <div className="bar" style={{height:4}}><i style={{width:(f*100)+'%',background:hpColor(f)}} /></div>
-      <div className="r" style={{marginTop:5}}><span>HP</span><b>{p.hp} / {p.maxHp}</b></div>
-      <div className="r"><span>State</span><b style={{color: !w?'var(--dim)': p.cooldown>0?'var(--gold)':'var(--accent)'}}>
-        {!w ? (p.type==='k'?'unarmed until endgame':'unarmed')
-            : p.cooldown>0 ? `reloading ${p.cooldown}` : 'LOADED'}</b></div>
-      {isCrippled(p) && <div className="r"><span>Wounded</span><b style={{color:'var(--red)'}}>{crippleNote(p)}</b></div>}
-
-      {w && prof ? (
-        <div className="w">
-          <div style={{fontWeight:600,color:'var(--ink)',marginBottom:5}}>{w.label}</div>
-          <div className="dmg">
-            <div className="dl"><span>Base</span><span>{prof.base}</span></div>
-            {prof.mods.map((m,i)=>(
-              <div className="dl bonus" key={i}><span>{m.name}</span><span>{m.text}</span></div>))}
-            <div className="dl tot"><span>Damage</span><span>{prof.total}</span></div>
-          </div>
-          <div style={{marginTop:6}}>
-            {isFinite(w.maxRange)?w.maxRange+' squares':'unlimited range'} · reload {w.cooldown}
-            {w.splashDamage?` · +${w.splashDamage} splash`:''}<br />
-            fires into {SECTOR_TEXT[w.sector]}
-            {w.prongs>0 && <><br />forks — hits the {w.prongs} nearest enemies</>}
-            {w.ignoresCover && <><br />arcs over cover</>}
-            {w.hitscan && <><br />pierces the whole line · only damages {squareTint(p.sq)?'light':'dark'} squares</>}
-          </div>
-        </div>
-      ) : (
-        <div className="w">{p.type==='k'
-          ? `No weapon until both sides are down to ${CONFIG.KING_ARMS_AT_PIECES} pieces. Cannot be shot — only checks hurt him.`
-          : 'No weapon.'}</div>
-      )}
-    </div>);
-}
-
 function SettingsCard({ game, onSet, onClose }) {
   const S = game.settings;
   return (
@@ -3079,8 +3031,6 @@ function App() {
             </div>)}
         </div>
       </div>
-
-      <Tooltip game={game} hover={hover} />
 
       {showRules && <RulesCard onClose={()=>setRules(false)} />}
       {showSet && <SettingsCard game={game} onClose={()=>setSet(false)}

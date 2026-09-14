@@ -207,9 +207,10 @@ repetition before it gets there.
 
 ## Weapons — chess principles as guns
 
-Hover any piece for a **live damage breakdown** (`Base 35 · Blocked file ×0.5 ·
-Damage 18`). Six conditional multipliers are invisible math without it, so the
-panel is not optional decoration.
+Aim (`F`) to see the **live damage breakdown** for the shot you are lining up
+(`Base 35 · Blocked file ×0.5 · Damage 18`). Six conditional multipliers are
+invisible math without it, so the aim view lists every piece the shot will hit and
+for how much. There is no hover panel; hovering a piece only shows its health bar.
 
 **♗ Bishop · Sniper.** Instant hitscan beam, unlimited range, pierces everything
 in line, and **fires only down its true diagonals**. **Locked to its colour complex.** ×2 from a fianchetto (b2/g2/b7/g7),
