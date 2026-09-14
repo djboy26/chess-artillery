@@ -6,6 +6,13 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["serve.js"],
       "port": 5173
+    },
+    {
+      "name": "chess-artillery-5174",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["serve.js", "5174"],
+      "port": 5174,
+      "autoPort": false
     }
   ]
 }

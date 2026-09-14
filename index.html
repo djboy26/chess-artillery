@@ -1569,6 +1569,328 @@ const flatRing = (i,o,s,st,l) => {
 };
 
 /*───────────────────────────────────────────────────────────────────────────
+  9b. LEGO BRICK BUILDS
+  Every piece is a small brick-built sculpture, and every gun is a spring-loaded
+  shooter built into it, with the ammo visibly chambered while the piece is
+  loaded. Builds are described in stud units (LEGO.P per stud, LEGO.PH per
+  plate) and merged into one geometry per material, so a whole army costs a
+  few dozen draw calls. Purely cosmetic: CONFIG.HEIGHT and PIECE_RADIUS (the
+  collision model) are untouched, so ballistics and cover are as measured.
+───────────────────────────────────────────────────────────────────────────*/
+const LEGO = {
+  P: 0.105,    // stud pitch. Five studs = 0.525, inside the 0.60 collision diameter.
+  PH: 0.042,   // one plate; a brick is three plates. All heights below are in plates.
+  STUD_R: 0.031, STUD_H: 0.020,
+  // Fixed army colours in every theme, chosen so neither army blends into any board.
+  army: {
+    w: { main:'#f4f2ec', sec:'#a6aaae', acc:'#e3b53d', dark:'#2b2d31' },
+    b: { main:'#1f2226', sec:'#5d6268', acc:'#cf2a33', dark:'#c9ccd0' },
+  },
+};
+
+/** Primitive geometries, cached and non-indexed so they merge cheaply. */
+const legoPrim = (() => {
+  const cache = new Map();
+  const get = (key, make) => {
+    if (!cache.has(key)) { const g = make(); cache.set(key, g.index ? g.toNonIndexed() : g); }
+    return cache.get(key);
+  };
+  return {
+    box:  (w,h,d)          => get(`box|${w}|${h}|${d}`, () => new THREE.BoxGeometry(w,h,d)),
+    cyl:  (rt,rb,h,seg=18) => get(`cyl|${rt}|${rb}|${h}|${seg}`, () => new THREE.CylinderGeometry(rt,rb,h,seg)),
+    dome: (r)              => get(`dome|${r}`, () => new THREE.SphereGeometry(r, 22, 10, 0, Math.PI*2, 0, Math.PI/2)),
+    ball: (r)              => get(`ball|${r}`, () => new THREE.SphereGeometry(r, 16, 12)),
+    // 45° slope brick: full height at the back (+z), a short lip at the front (−z).
+    wedge:(w,h,d)          => get(`wedge|${w}|${h}|${d}`, () => {
+      const s = new THREE.Shape();
+      s.moveTo( d/2, 0); s.lineTo(-d/2, 0); s.lineTo(-d/2, h);
+      s.lineTo(-d/2 + d*0.38, h); s.lineTo(d/2, h*0.22); s.closePath();
+      const g = new THREE.ExtrudeGeometry(s, { depth:w, bevelEnabled:false });
+      g.rotateY(Math.PI/2); g.translate(-w/2, 0, 0);   // extrude axis → x, shape x → −z
+      g.computeVertexNormals();
+      return g;
+    }),
+  };
+})();
+
+/**
+ * A builder collects parts: { geo, m, mat, gun, ammo }. Coordinates are in
+ * studs (x, z) and plates (y); footprints are given by their stud edges, so a
+ * 2×2 brick centred on the piece is brick(-1,1,-1,1,…).
+ */
+function legoBuilder() {
+  const P = LEGO.P, PH = LEGO.PH, parts = [];
+  const T = (x,y,z) => new THREE.Matrix4().makeTranslation(x*P, y*PH, z*P);
+  const TR = (x,y,z, rx,ry,rz, sx=1,sy=1,sz=1) => new THREE.Matrix4().compose(
+    new THREE.Vector3(x*P, y*PH, z*P),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz)),
+    new THREE.Vector3(sx,sy,sz));
+  const add = (geo, m, mat, f={}) => { parts.push({ geo, m, mat, gun:!!f.gun, ammo:!!f.ammo }); return B; };
+  const studRow = (cells, ytop, mat, f) => {
+    for (const [sx,sz] of cells)
+      add(legoPrim.cyl(LEGO.STUD_R, LEGO.STUD_R, LEGO.STUD_H, 14),
+          new THREE.Matrix4().makeTranslation(sx*P, ytop*PH + LEGO.STUD_H/2, sz*P), mat, f);
+  };
+  const grid = (x0,x1,z0,z1) => {
+    const out=[]; for (let x=x0+0.5; x<x1; x++) for (let z=z0+0.5; z<z1; z++) out.push([x,z]); return out;
+  };
+  const B = {
+    parts,
+    /** brick or plate: footprint x0..x1 × z0..z1, bottom at y, hp plates tall */
+    brick(x0,x1,z0,z1,y,hp,mat,f={}) {
+      add(legoPrim.box((x1-x0)*P, hp*PH, (z1-z0)*P), T((x0+x1)/2, y+hp/2, (z0+z1)/2), mat, f);
+      if (!f.tile) studRow(grid(x0,x1,z0,z1), y+hp, mat, f);
+      return B;
+    },
+    plate(x0,x1,z0,z1,y,mat,f)   { return B.brick(x0,x1,z0,z1,y,1,mat,f); },
+    tile(x0,x1,z0,z1,y,hp,mat,f={}) { return B.brick(x0,x1,z0,z1,y,hp,mat,{...f,tile:true}); },
+    /** round brick or plate, diameter in studs (1 or 2) */
+    round(cx,cz,dia,y,hp,mat,f={}) {
+      const r = dia/2*P*0.99;
+      add(legoPrim.cyl(r,r,hp*PH, dia>1?28:16), T(cx,y+hp/2,cz), mat, f);
+      if (!f.tile) studRow(dia>1 ? [[cx-.44,cz-.44],[cx+.44,cz-.44],[cx-.44,cz+.44],[cx+.44,cz+.44]] : [[cx,cz]], y+hp, mat, f);
+      return B;
+    },
+    cone(cx,cz,dBot,dTop,y,hp,mat,f={}) {
+      add(legoPrim.cyl(dTop/2*P, dBot/2*P, hp*PH, 24), T(cx,y+hp/2,cz), mat, f);
+      if (!f.tile && dTop >= 0.9) studRow([[cx,cz]], y+hp, mat, f);
+      return B;
+    },
+    /** dome brick: a hemisphere squashed to hp plates */
+    dome(cx,cz,dia,y,hp,mat,f={}) {
+      const r = dia/2*P;
+      return add(legoPrim.dome(r), TR(cx,y,cz, 0,0,0, 1,(hp*PH)/r,1), mat, f);
+    },
+    ball(cx,cy,cz,r,mat,f={}) { return add(legoPrim.ball(r*P), T(cx,cy,cz), mat, f); },
+    /** slope brick; `face` names the side that slopes down: '-z' '+z' '-x' '+x'. Studs on the back row. */
+    slope(x0,x1,z0,z1,y,hp,mat,face,f={}) {
+      const w=x1-x0, d=z1-z0, cx=(x0+x1)/2, cz=(z0+z1)/2;
+      const ry = { '-z':0, '+z':Math.PI, '-x':Math.PI/2, '+x':-Math.PI/2 }[face];
+      const along = face==='-x' || face==='+x';
+      add(legoPrim.wedge(along ? d*P : w*P, hp*PH, along ? w*P : d*P), TR(cx,y,cz, 0,ry,0), mat, f);
+      const depth = along ? w : d;
+      if (!f.tile && depth >= 2) {
+        const cells = face==='-z' ? grid(x0,x1,z1-1,z1) : face==='+z' ? grid(x0,x1,z0,z0+1)
+                    : face==='-x' ? grid(x1-1,x1,z0,z1) : grid(x0,x0+1,z0,z1);
+        studRow(cells, y+hp, mat, f);
+      }
+      return B;
+    },
+    /** cylinder lying along z (a bar, a barrel band, a lens), centred at (cx,cy,cz) */
+    cylZ(cx,cy,cz,r,len,mat,f={}) {
+      return add(legoPrim.cyl(r*P, r*P, len*P, 18), TR(cx,cy,cz, Math.PI/2,0,0), mat, f);
+    },
+    /** flat disc on a vertical face (an eye, a medallion): normal along ±z */
+    discZ(cx,cy,cz,r,mat,f={}) {
+      return add(legoPrim.cyl(r*P, r*P, 0.08*P, 18), TR(cx,cy,cz, Math.PI/2,0,0), mat, f);
+    },
+    /**
+     * Barrel: a tube from a base point, pointing toward −z and raised by `elev`
+     * radians. Returns the muzzle point {x,y,z} (studs/plates) so ammo can sit in it.
+     */
+    barrel(bx,by,bz, r, len, elev, mat, f={}, rTop) {
+      const dy = Math.sin(elev), dz = -Math.cos(elev);          // world direction
+      const cyW = by*PH + dy*len*P/2, czW = bz*P + dz*len*P/2;  // centre in world units
+      add(legoPrim.cyl((rTop==null?r:rTop)*P, r*P, len*P, 18),
+          new THREE.Matrix4().compose(new THREE.Vector3(bx*P, cyW, czW),
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(elev - Math.PI/2, 0, 0)),
+            new THREE.Vector3(1,1,1)), mat, f);
+      return { x:bx, y:(by*PH + dy*len*P)/PH, z:(bz*P + dz*len*P)/P, dy, dz };
+    },
+    /** a short cylinder on a barrel axis (a muzzle lip), `along` studs past the muzzle point */
+    ring(mz, along, r, len, mat, f={}) {
+      const elev = Math.atan2(mz.dy, -mz.dz);
+      return add(legoPrim.cyl(r*P, r*P, len*P, 18),
+        new THREE.Matrix4().compose(new THREE.Vector3(mz.x*P, mz.y*PH + mz.dy*along*P, mz.z*P + mz.dz*along*P),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(elev - Math.PI/2, 0, 0)), new THREE.Vector3(1,1,1)), mat, f);
+    },
+    /** a shell/bead sitting on a barrel axis, `along` studs past the muzzle point */
+    shell(mz, along, r, mat, f={}) {
+      return add(legoPrim.ball(r*P),
+        new THREE.Matrix4().makeTranslation(mz.x*P, mz.y*PH + mz.dy*along*P, mz.z*P + mz.dz*along*P), mat, f);
+    },
+  };
+  return B;
+}
+
+/*
+  THE SIX SCULPTURES. Bodies face −z (toward the enemy) and are turned around
+  for Black. Gun parts live in a separate group that swings to the aim bearing;
+  they are mounted on round bricks so they stay attached at every bearing.
+  Heights are in plates: a pawn is 12 (0.50), a rook 18 (0.76), a bishop 19
+  (0.80), a knight 17 (0.71), a queen and king 23 (0.97) — the collision heights.
+*/
+const LEGO_BUILDS = {
+  p(B) {
+    B.plate(-2,2,-2,2, 0, 'sec')                       // base plate
+     .brick(-1,1,-1,1, 1,3, 'main')                     // foot
+     .round(0,0,2, 4,1, 'acc')                          // gold ring
+     .round(0,0,2, 5,3, 'main')                         // body
+     .round(0,0,2, 8,1, 'acc')                          // neck ring
+     .dome(0,0,2, 9,2, 'main')                          // head
+     .round(0,0,1, 11,1, 'acc');                        // button on top → 12
+    // spare ammo on the back
+    B.tile(-1,1, 1.0,2.0, 5,1, 'sec');
+    B.round(-0.5,1.5,1, 6,0.6, 'ammo', {ammo:false}).round(0.5,1.5,1, 6,0.6, 'ammo', {ammo:false});
+    // twin stud shooters on the shoulders (spring housings, muzzle rings, chambered studs)
+    for (const sx of [-1.35, 1.35]) {
+      B.tile(sx-0.45, sx+0.45, -1.0, 0.8, 6, 2, 'sec', {gun:true});
+      B.cylZ(sx, 7, -1.05, 0.34, 0.25, 'dark', {gun:true});            // muzzle ring
+      B.cylZ(sx, 7, -1.35, 0.25, 0.55, 'ammo', {gun:true, ammo:true}); // chambered stud
+      B.cylZ(sx, 7,  0.95, 0.16, 0.45, 'dark', {gun:true});            // plunger rod
+      B.tile(sx-0.28, sx+0.28, 1.15, 1.45, 6.6, 0.8, 'acc', {gun:true}); // plunger cap
+    }
+  },
+
+  r(B) {
+    B.plate(-2,2,-2,2, 0, 'sec')
+     .brick(-2,2,-2,2, 1,3, 'main')                     // plinth
+     .plate(-2,2,-2,2, 4, 'sec')                        // string course
+     .brick(-1.5,1.5,-1.5,1.5, 5,9, 'main')             // tower
+     .plate(-2,2,-2,2, 14, 'main');                     // corbelled cap
+    // arrow slits on the flanks
+    for (const sx of [-1.58, 1.58]) B.tile(sx-0.06, sx+0.06, -0.4, 0.4, 8, 3, 'dark');
+    // battlements: corners and mid-merlons, with gold caps on the corners
+    for (const [x,z] of [[-1.5,-1.5],[1.5,-1.5],[-1.5,1.5],[1.5,1.5]]) {
+      B.brick(x-0.5,x+0.5,z-0.5,z+0.5, 15,3, 'main'); B.tile(x-0.5,x+0.5,z-0.5,z+0.5, 18,0.4, 'acc');
+    }
+    for (const [x,z] of [[0,-1.5],[0,1.5],[-1.5,0],[1.5,0]]) B.brick(x-0.5,x+0.5,z-0.5,z+0.5, 15,2, 'main');
+    // railgun: a heavy tube through the tower, banded, with the shell nose showing
+    B.cylZ(0, 10, -1.2, 0.62, 5.2, 'sec', {gun:true});
+    for (const z of [-2.2, -3.1]) B.cylZ(0, 10, z, 0.70, 0.30, 'dark', {gun:true});
+    B.cylZ(0, 10, -3.85, 0.68, 0.30, 'dark', {gun:true});                 // muzzle brake
+    B.cylZ(0, 10, -4.15, 0.42, 0.70, 'ammo', {gun:true, ammo:true});     // chambered shell
+    B.cylZ(0, 10,  1.75, 0.30, 0.55, 'dark', {gun:true});                 // plunger
+    B.round(0,2.15,1, 9.5,1, 'acc', {gun:true, tile:true});              // plunger cap
+  },
+
+  b(B) {
+    B.plate(-2,2,-2,2, 0, 'sec')
+     .brick(-1,1,-1,1, 1,3, 'main')
+     .round(0,0,2, 4,1, 'acc')
+     .round(0,0,2, 5,6, 'main')                         // stem
+     .round(0,0,2, 11,1, 'acc')                         // collar
+     .dome(0,0,2, 12,2, 'main')                         // shoulders
+     .cone(0,0,2,1, 14,3, 'main')                       // mitre
+     .round(0,0,1, 17,1, 'acc')                         // band
+     .cone(0,0,1,0.45, 18,1, 'acc', {tile:true});       // tip → 19
+    // sniper rail: receiver clipped to the stem, long bar, scope, glowing lens
+    B.tile(-0.5,0.5, -1.95,-0.95, 7.5,2, 'sec', {gun:true});             // receiver
+    B.cylZ(0, 8.5, -3.2, 0.17, 2.8, 'sec', {gun:true});                  // rail
+    B.cylZ(0, 9.45, -1.7, 0.17, 1.2, 'dark', {gun:true});                // scope
+    B.cylZ(0, 8.5, -4.65, 0.36, 0.24, 'dark', {gun:true});               // lens rim
+    B.cylZ(0, 8.5, -4.85, 0.30, 0.22, 'ammo', {gun:true, ammo:true});    // lens, lit when loaded
+    B.round(0,-1.45,1, 9.5,0.6, 'acc', {gun:true, tile:true});           // trigger cap
+  },
+
+  n(B) {
+    // a horse in profile: nose toward +x, mane and mortar toward −x
+    B.plate(-2,2,-2,2, 0, 'sec')
+     .brick(-2,2,-1,1, 1,3, 'main')                     // base block
+     .brick(-2,0,-1,1, 4,3, 'main')                     // rump
+     .slope(0,2,-1,1, 4,3, 'main', '+x')                // chest
+     .brick(-1,1,-1,1, 7,3, 'main')                     // lower neck
+     .brick(0,2,-1,1, 10,3, 'main')                     // upper neck
+     .slope(-1,0,-0.5,0.5, 10,2, 'acc', '-x')           // mane
+     .brick(0.5,2.5,-1,1, 13,2, 'main')                 // head
+     .slope(1.5,2.5,-0.5,0.5, 15,2, 'acc', '+x')        // forelock → 17
+     .cone(0.75,-0.65,0.6,0.25, 15,2, 'main', {tile:true})   // ears
+     .cone(0.75, 0.65,0.6,0.25, 15,2, 'main', {tile:true});
+    for (const z of [-1.02, 1.02]) B.discZ(1.8, 14.2, z, 0.22, 'dark'); // eyes
+    // brick mortar on the rump: a round tube canted up, shell showing at the mouth
+    B.round(-1.5,0,1, 7,1, 'sec', {gun:true, tile:true});                // pivot plate
+    const mz = B.barrel(-1.5, 8, 0.15, 0.62, 2.4, 1.05, 'sec', {gun:true});
+    B.ring(mz, 0.0, 0.70, 0.30, 'dark', {gun:true});                      // muzzle lip
+    B.shell(mz, 0.32, 0.50, 'ammo', {gun:true, ammo:true});               // chambered shell, half out of the mouth
+    B.ball(-1.5, 7.3, 0.55, 0.22, 'dark', {gun:true});                    // plunger cap
+    // two spare shells racked on the base block behind the rump
+    B.tile(-2,-1, 1.0,2.0, 4,1, 'sec');
+    B.ball(-1.5, 5.6, 1.5, 0.30, 'ammo');
+  },
+
+  q(B) {
+    B.plate(-2,2,-2,2, 0, 'sec')
+     .brick(-1.5,1.5,-1.5,1.5, 1,3, 'main')             // skirt
+     .plate(-1.5,1.5,-1.5,1.5, 4, 'acc')                // hem
+     .round(0,0,2, 5,6, 'main')                         // waist
+     .round(0,0,2, 11,1, 'acc')                         // belt
+     .round(0,0,2, 12,3, 'main')                        // bodice
+     .round(0,0,2, 15,1, 'acc')                         // collar
+     .dome(0,0,2, 16,2, 'main')                         // head
+     .round(0,0,2, 18,1, 'acc');                        // crown band
+    for (const [x,z] of [[-0.5,-0.5],[0.5,-0.5],[-0.5,0.5],[0.5,0.5]]) B.cone(x,z,0.7,0.3, 19,2, 'acc', {tile:true});
+    B.cone(0,0,1,0.45, 19,3, 'acc', {tile:true});
+    B.ball(0, 22.4, 0, 0.30, 'main');                                     // pearl → 23
+    // howitzer on a bracket that rides the round bodice like a turret ring
+    B.tile(0.55,1.55, -1.45,-0.45, 13.5,1.5, 'sec', {gun:true});          // bracket
+    B.round(1.05,-0.95,1, 15,0.6, 'sec', {gun:true, tile:true});          // trunnion
+    const mz = B.barrel(1.05, 15.6, -0.95, 0.40, 2.6, 0.62, 'sec', {gun:true}, 0.46);
+    B.ring(mz, 0.0, 0.48, 0.30, 'dark', {gun:true});                      // muzzle ring
+    B.shell(mz, 0.34, 0.34, 'ammo', {gun:true, ammo:true});               // chambered shell
+    B.ball(1.05, 15.1, -0.35, 0.24, 'dark', {gun:true});                   // plunger cap
+  },
+
+  k(B) {
+    B.plate(-2,2,-2,2, 0, 'sec')
+     .brick(-1.5,1.5,-1.5,1.5, 1,3, 'main')             // plinth
+     .plate(-1.5,1.5,-1.5,1.5, 4, 'sec')
+     .round(0,0,2, 5,6, 'main')                         // robe
+     .round(0,0,2, 11,1, 'acc')                         // belt
+     .round(0,0,2, 12,3, 'main')                        // chest
+     .round(0,0,2, 15,1, 'acc')                         // collar
+     .dome(0,0,2, 16,2, 'main')                         // head
+     .plate(-1,1,-1,1, 18, 'acc');                      // crown band
+    for (const [x,z] of [[-0.5,-0.5],[0.5,-0.5],[-0.5,0.5],[0.5,0.5]]) B.cone(x,z,0.6,0.3, 19,1.5, 'acc', {tile:true});
+    B.tile(-0.35,0.35,-0.35,0.35, 19,4, 'acc');                            // cross upright
+    B.tile(-1,1,-0.35,0.35, 21,0.8, 'acc');                                // cross arm → 23
+    B.discZ(0, 13.5, -1.03, 0.30, 'acc');                                  // medallion
+    // last-stand stud shooter on the chest, only exists once he is armed
+    B.tile(-0.5,0.5, -1.95,-0.95, 8.5,2, 'sec', {gun:true});
+    B.cylZ(0, 9.5, -2.0, 0.34, 0.25, 'dark', {gun:true});
+    B.cylZ(0, 9.5, -2.3, 0.25, 0.55, 'ammo', {gun:true, ammo:true});
+  },
+};
+
+/** Merge a list of parts into one non-indexed geometry (positions + normals). */
+function legoMerge(parts) {
+  let n = 0; for (const p of parts) n += p.geo.attributes.position.count;
+  const pos = new Float32Array(n*3), nor = new Float32Array(n*3);
+  const v = new THREE.Vector3(), nm = new THREE.Matrix3();
+  let k = 0;
+  for (const {geo, m} of parts) {
+    const pa = geo.attributes.position, na = geo.attributes.normal;
+    nm.getNormalMatrix(m);
+    for (let i=0; i<pa.count; i++, k+=3) {
+      v.fromBufferAttribute(pa, i).applyMatrix4(m);  pos[k]=v.x; pos[k+1]=v.y; pos[k+2]=v.z;
+      v.fromBufferAttribute(na, i).applyMatrix3(nm).normalize(); nor[k]=v.x; nor[k+1]=v.y; nor[k+2]=v.z;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  return g;
+}
+
+const _legoCache = new Map();
+/** { body:{main,sec,acc,dark,ammo}, gun:{main,sec,acc,dark}, ammo } for one piece type. */
+function legoBuild(type) {
+  if (_legoCache.has(type)) return _legoCache.get(type);
+  const B = legoBuilder();
+  LEGO_BUILDS[type](B);
+  const pick = (f) => { const l = B.parts.filter(f); return l.length ? legoMerge(l) : null; };
+  const groups = ['main','sec','acc','dark'];
+  const out = {
+    body: Object.fromEntries(groups.map(g => [g, pick(p => !p.gun && !p.ammo && p.mat===g)])),
+    bodyAmmo: pick(p => !p.gun && p.mat==='ammo'),
+    gun:  Object.fromEntries(groups.map(g => [g, pick(p => p.gun && !p.ammo && p.mat===g)])),
+    ammo: pick(p => p.gun && p.ammo),
+    partCount: B.parts.length,
+  };
+  _legoCache.set(type, out);
+  return out;
+}
+
+/*───────────────────────────────────────────────────────────────────────────
   THEMES. Each palette drives both the HTML chrome (as CSS custom properties)
   and the 3D scene. COL is deliberately mutable: every material reads COL.x at
   render time, so swapping the palette and re-rendering repaints everything.
@@ -1731,200 +2053,69 @@ function HealthBar({ p, force }) {
     </Billboard>);
 }
 
-/** Under-piece ring: accent = loaded, gold arc = reloading, faint = no weapon yet. */
-function StatusRing({ p, game }) {
-  const w = weaponOf(p, game);
-  const cooling = p.cooldown>0;
-  const ready = !!w && !cooling;
-  if (!w && !cooling) return null;
-  const frac = cooling ? 1 - p.cooldown/(w?w.cooldown:CONFIG.WEAPONS[p.type].cooldown) : 1;
-  const geo = cooling
-    ? flatRing(0.335,0.355,48, Math.PI/2, Math.max(0.001, frac*Math.PI*2))
-    : flatRing(0.335,0.355,48, 0, Math.PI*2);
-  const cdTex = cooling ? textTex(String(p.cooldown), '#96700e') : null;
+/** Turns left to reload, floating beside the piece. The loaded state is the chambered ammo itself. */
+function CooldownBadge({ p }) {
+  if (!(p.cooldown > 0)) return null;
+  const tex = textTex(String(p.cooldown), '#96700e');
   return (
-    <>
-      {cooling && (
-        <mesh geometry={flatRing(0.335,0.355,48,0,Math.PI*2)} raycast={noPick} renderOrder={2}
-              rotation={[-Math.PI/2,0,0]} position={[0,0.013,0]}>
-          <meshBasicMaterial color="#cbbda4" transparent opacity={0.45} depthWrite={false} />
-        </mesh>)}
-      <mesh geometry={geo} raycast={noPick} renderOrder={3} rotation={[-Math.PI/2,0,0]} position={[0,0.015,0]}>
-        <meshBasicMaterial color={cooling?COL.gold:ready?COL.accent:'#b9a98e'}
-          transparent opacity={cooling?0.7:ready?0.55:0.3} depthWrite={false} />
-      </mesh>
-      {cdTex && (
-        <sprite position={[0.34, 0.16, 0.34]} scale={[0.30,0.11,1]} renderOrder={33}>
-          <spriteMaterial map={cdTex} transparent depthTest={false} depthWrite={false} />
-        </sprite>)}
-    </>);
+    <sprite position={[0.34, 0.16, 0.34]} scale={[0.30,0.11,1]} renderOrder={33}>
+      <spriteMaterial map={tex} transparent depthTest={false} depthWrite={false} />
+    </sprite>);
 }
 
-/**
- * Crests read as part of the piece, so they use the body colour. Only the small
- * jewellery (crown pips, king's cross) picks up the lighter trim.
- */
 /*───────────────────────────────────────────────────────────────────────────
-  WEAPONS YOU CAN SEE. Every piece visibly carries the gun it actually fires,
-  and the barrel swings to the locked target while aiming. Purely cosmetic —
-  CONFIG.HEIGHT and PIECE_RADIUS (the collision model) are untouched, so
-  ballistics and cover are unchanged.
+  A PIECE ON THE BOARD. The brick body faces the enemy; the shooter group swings
+  to the aim bearing (the knight's mortar lobs, so it stays put on the rump).
+  Chambered ammo is drawn only while the piece is loaded.
 ───────────────────────────────────────────────────────────────────────────*/
+const PLASTIC = { roughness:0.42, metalness:0.02 };
+const LEGO_GROUPS = ['main','sec','acc','dark'];
 
-const WG = {
-  // Chunky on purpose: at normal play distance anything thinner than ~0.05 world
-  // units reads as a speck rather than a gun.
-  barrelL:  new THREE.CylinderGeometry(0.050, 0.056, 0.58, 14),   // rook railgun
-  barrelM:  new THREE.CylinderGeometry(0.046, 0.052, 0.48, 14),   // queen howitzer
-  barrelS:  new THREE.CylinderGeometry(0.040, 0.044, 0.30, 12),   // pawn / king
-  mortar:   new THREE.CylinderGeometry(0.078, 0.086, 0.34, 16),   // knight tube
-  lens:     new THREE.CylinderGeometry(0.070, 0.046, 0.075, 18),  // bishop optic
-  scope:    new THREE.CylinderGeometry(0.028, 0.028, 0.44, 12),   // bishop rail
-  muzzle:   new THREE.CylinderGeometry(0.066, 0.066, 0.062, 14),
-  mount:    new THREE.BoxGeometry(0.155, 0.085, 0.155),
-  mag:      new THREE.BoxGeometry(0.082, 0.125, 0.05),
-  strut:    new THREE.CylinderGeometry(0.019, 0.019, 0.22, 8),
-  bead:     new THREE.SphereGeometry(0.034, 12, 10),
-};
-
-/** The gun a piece carries, mounted and aimed. */
-const GUN_SCALE = 0.65;   // guns are cosmetic; smaller reads cleaner at play distance
-function PieceWeapon({ p, game, aimYaw }) {
+function PieceMesh({ p, game, selected, hovered, eligible, dim, aimYaw, onPick, onHover, spin }) {
+  const [x,,z] = worldOf(p.sq);
+  const pal = LEGO.army[p.color];
+  const build = legoBuild(p.type);
   const w = weaponOf(p, game);
-  if (!w) return null;                    // unarmed king shows nothing
-  const h = CONFIG.HEIGHT[p.type];
-  const gun = <meshStandardMaterial color={COL.metal} roughness={0.34} metalness={0.72} />;
-  const hot = <meshStandardMaterial color={w.tracer} roughness={0.3} metalness={0.4}
-                emissive={w.tracer} emissiveIntensity={0.55} />;
+  const loaded = !!w && !(p.cooldown > 0);
+  const glow = selected ? COL.accent : eligible ? '#8a4418' : '#000';
 
   // Idle bearing: forward for most, the near diagonal for the pawn/bishop.
   const fwd = p.color === 'w' ? 0 : Math.PI;
   const idle = (p.type === 'p' || p.type === 'b') ? fwd + Math.PI/4 : fwd;
-  const yaw = aimYaw != null ? aimYaw : idle;
+  const yaw = (aimYaw != null && p.type !== 'n') ? aimYaw : idle;
 
-  // `yaw` is measured from −z, but a group's Y rotation is measured from +z,
-  // so the sign flips. Barrels are modelled along −z after a +90° X tilt.
-  return (
-    <group rotation={[0, -yaw, 0]}>
-      {p.type === 'p' && (
-        <group position={[0, h*0.80, 0]} scale={GUN_SCALE}>
-          <mesh geometry={WG.mount} scale={[0.8,0.75,0.8]}>{gun}</mesh>
-          <mesh geometry={WG.barrelS} position={[0, 0.015, -0.17]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
-          <mesh geometry={WG.bead} position={[0, 0.015, -0.30]} scale={[0.7,0.7,0.7]}>{hot}</mesh>
-        </group>)}
+  const spinRef = useRef();
+  useFrame((_, dt) => { if (spin && spinRef.current) spinRef.current.rotation.y += dt * 0.6; });
 
-      {p.type === 'n' && (
-        <group position={[0, h*0.62, 0]} scale={GUN_SCALE}>
-          {/* mortar tube, canted up — it only ever lobs */}
-          <mesh geometry={WG.mortar} position={[0, 0.13, -0.07]} rotation={[-0.95,0,0]}>{gun}</mesh>
-          <mesh geometry={WG.muzzle} position={[0, 0.26, -0.16]} rotation={[-0.95,0,0]}>{hot}</mesh>
-          <mesh geometry={WG.strut} position={[-0.10,-0.03,0.07]} rotation={[0.4,0,-0.35]}>{gun}</mesh>
-          <mesh geometry={WG.strut} position={[ 0.10,-0.03,0.07]} rotation={[0.4,0, 0.35]}>{gun}</mesh>
-        </group>)}
+  const plastic = (col, extra={}) => (
+    <meshStandardMaterial color={col} {...PLASTIC} transparent={dim} opacity={dim?0.30:1} {...extra} />);
+  const ammo = () => (
+    <meshStandardMaterial color={w ? w.tracer : pal.acc} emissive={w ? w.tracer : pal.acc}
+      emissiveIntensity={0.7} roughness={0.22} metalness={0} transparent opacity={dim?0.30:0.88} />);
 
-      {p.type === 'b' && (
-        <group position={[0, h*0.60, 0]} scale={GUN_SCALE}>
-          {/* long sniper rail + glowing optic */}
-          <mesh geometry={WG.scope} position={[0, 0.04, -0.20]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
-          <mesh geometry={WG.lens} position={[0, 0.04, -0.44]} rotation={[Math.PI/2,0,0]}>{hot}</mesh>
-          <mesh geometry={WG.bead} position={[0, 0.125, -0.03]}>{hot}</mesh>
-          <mesh geometry={WG.mount} scale={[0.65,0.6,0.95]} position={[0,-0.01,-0.02]}>{gun}</mesh>
-        </group>)}
-
-      {p.type === 'r' && (
-        <group position={[0, h*0.70, 0]} scale={GUN_SCALE}>
-          {/* heavy railgun through the tower */}
-          <mesh geometry={WG.mount} position={[0,0,0.03]}>{gun}</mesh>
-          <mesh geometry={WG.barrelL} position={[0, 0.005, -0.30]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
-          <mesh geometry={WG.muzzle} position={[0, 0.005, -0.60]} rotation={[Math.PI/2,0,0]}>{hot}</mesh>
-          {[-0.075,0.075].map((dx,i)=>(
-            <mesh key={i} geometry={WG.strut} position={[dx,0.005,-0.18]}
-                  rotation={[Math.PI/2,0,0]} scale={[1,1.3,1]}>{gun}</mesh>))}
-        </group>)}
-
-      {p.type === 'q' && (
-        <group position={[0, h*0.66, 0]} scale={GUN_SCALE}>
-          {/* howitzer on a turret ring, elevated */}
-          <mesh geometry={WG.mount} scale={[1.25,0.9,1.25]}>{gun}</mesh>
-          <mesh geometry={WG.barrelM} position={[0, 0.14, -0.20]} rotation={[-0.42,0,0]}>{gun}</mesh>
-          <mesh geometry={WG.muzzle} position={[0, 0.245, -0.40]} rotation={[-0.42,0,0]}>{hot}</mesh>
-          <mesh geometry={WG.strut} position={[0,-0.03,0.11]} rotation={[0.55,0,0]}>{gun}</mesh>
-        </group>)}
-
-      {p.type === 'k' && (
-        <group position={[0, h*0.52, 0]} scale={GUN_SCALE}>
-          {/* short last-stand piece, only exists once he is armed */}
-          <mesh geometry={WG.mount} scale={[0.75,0.65,0.75]}>{gun}</mesh>
-          <mesh geometry={WG.barrelS} position={[0, 0.02, -0.17]} rotation={[Math.PI/2,0,0]}>{gun}</mesh>
-          <mesh geometry={WG.bead} position={[0, 0.02, -0.32]}>{hot}</mesh>
-        </group>)}
-    </group>);
-}
-
-function PieceCrest({ p, body, trim, rim }) {
-  const h = CONFIG.HEIGHT[p.type];
-  const bodyMat = <meshStandardMaterial color={body} roughness={p.color==='w'?0.44:0.40}
-                    metalness={p.color==='w'?0.06:0.16} />;
-  const trimMat = <meshStandardMaterial color={trim} roughness={0.34} metalness={0.34} />;
-
-  if (p.type==='r') return (
-    <group>{[0,1,2,3,4,5].map(i=>{
-      const a=i/6*Math.PI*2;
-      return <mesh key={i} geometry={GEO.batt}
-        position={[Math.cos(a)*0.178, h+0.028, Math.sin(a)*0.178]} rotation={[0,-a,0]}>{bodyMat}</mesh>;})}
-    </group>);
-
-  if (p.type==='q') return (
-    <group>{[0,1,2,3,4,5,6].map(i=>{
-      const a=i/7*Math.PI*2;
-      return <mesh key={i} geometry={GEO.pip}
-        position={[Math.cos(a)*0.182, h*0.80, Math.sin(a)*0.182]}>{trimMat}</mesh>;})}
-    </group>);
-
-  if (p.type==='k') return (
-    <group position={[0, h*0.885+0.058, 0]}>
-      <mesh geometry={GEO.crossV}>{trimMat}</mesh>
-      <mesh geometry={GEO.crossH} position={[0,0.024,0]}>{trimMat}</mesh>
-    </group>);
-
-  if (p.type==='n') {
-    // The head is only readable in profile, and both players sit down the z axis —
-    // so the nose points along x (White right, Black left), never at the camera.
-    const rot = [0, p.color==='w' ? 0 : Math.PI, 0];
-    return (<>
-      <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]} rotation={rot} raycast={noPick} scale={[1.07,1.06,1.16]}>
-        <meshBasicMaterial color={rim} side={THREE.BackSide} /></mesh>
-      <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]} rotation={rot}>{bodyMat}</mesh>
-    </>);
-  }
-  if (p.type==='b') return <mesh geometry={GEO.pip} position={[0, h*0.99, 0]}>{trimMat}</mesh>;
-  return null;
-}
-
-function PieceMesh({ p, game, selected, hovered, eligible, dim, aimYaw, onPick, onHover }) {
-  const [x,,z] = worldOf(p.sq);
-  const body = p.color==='w' ? COL.wBody : COL.bBody;
-  const trim = p.color==='w' ? COL.wTrim : COL.bTrim;
-  const rim  = p.color==='w' ? COL.rimW  : COL.rimB;   // thin outline so the piece reads on any tile
-  const glow = selected ? COL.accent : eligible ? '#8a4418' : '#000';
+  // `yaw` is measured from −z, but a group's Y rotation is measured from +z, so the sign flips.
   return (
     <group position={[x,0,z]}
       onClick={(e)=>{e.stopPropagation(); onPick(p.id);}}
       onPointerOver={(e)=>{e.stopPropagation(); onHover(p.id,e);}}
       onPointerOut={(e)=>{e.stopPropagation(); onHover(null,e);}}>
-      {/* inverted hull: a slightly larger back-face copy draws a thin rim around the silhouette */}
-      <mesh geometry={GEO.body[p.type]} raycast={noPick} scale={[1.06,1.035,1.06]} position={[0,0.003,0]}>
-        <meshBasicMaterial color={rim} side={THREE.BackSide} transparent={dim} opacity={dim?0.30:1} />
-      </mesh>
-      <mesh geometry={GEO.body[p.type]}>
-        <meshStandardMaterial color={body} roughness={p.color==='w'?0.44:0.40}
-          metalness={p.color==='w'?0.06:0.16}
-          transparent={dim} opacity={dim?0.30:1}
-          emissive={glow} emissiveIntensity={selected?0.5:eligible?0.42:0} />
-      </mesh>
-      <PieceCrest p={p} body={body} trim={trim} rim={rim} />
-      <PieceWeapon p={p} game={game} aimYaw={aimYaw} />
-      <StatusRing p={p} game={game} />
+      <group ref={spinRef}>
+        <group rotation={[0, fwd, 0]}>
+          {LEGO_GROUPS.map(g => build.body[g] && (
+            <mesh key={g} geometry={build.body[g]}>
+              {plastic(pal[g], g==='main'
+                ? { emissive:glow, emissiveIntensity: selected?0.5:eligible?0.42:0 } : {})}
+            </mesh>))}
+          {build.bodyAmmo && <mesh geometry={build.bodyAmmo}>{ammo()}</mesh>}
+        </group>
+        {w && (
+          <group rotation={[0, -yaw, 0]}>
+            {LEGO_GROUPS.map(g => build.gun[g] && (
+              <mesh key={g} geometry={build.gun[g]}>{plastic(pal[g])}</mesh>))}
+            {build.ammo && <mesh geometry={build.ammo} visible={loaded}>{ammo()}</mesh>}
+          </group>)}
+      </group>
+      <CooldownBadge p={p} />
       {selected && (
         <mesh geometry={flatRing(0.40,0.455,48,0,Math.PI*2)} raycast={noPick} renderOrder={4}
               rotation={[-Math.PI/2,0,0]} position={[0,0.018,0]}>
@@ -1932,6 +2123,72 @@ function PieceMesh({ p, game, selected, hovered, eligible, dim, aimYaw, onPick, 
         </mesh>)}
       <HealthBar p={p} force={selected||hovered} />
     </group>);
+}
+
+/*───────────────────────────────────────────────────────────────────────────
+  PIECE GALLERY (index.html?gallery, add &theme=carbon): the twelve sculptures
+  on a board, slowly turning, for inspecting the builds without playing.
+───────────────────────────────────────────────────────────────────────────*/
+function GalleryCamera({ zoom, focus }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    if (focus) {
+      const [,,tz] = worldOf(mkSq(3,3));
+      camera.position.set(0.6*zoom, 1.05*zoom, tz + 2.1*zoom);
+      camera.lookAt(0, 0.38, tz);
+    } else {
+      camera.position.set(0, 3.4*zoom, 5.0*zoom);
+      camera.lookAt(0, 0.35, 0);
+    }
+    camera.updateProjectionMatrix();
+  }, [camera, zoom, focus]);
+  return null;
+}
+
+function Gallery({ themeName, zoom = 1, focus = null }) {
+  const [theme] = useState(() => {
+    let t = themeName;
+    if (!THEMES[t]) { try { t = localStorage.getItem('ca-theme'); } catch(e) {} }
+    return applyTheme(THEMES[t] ? t : 'ivory');
+  });
+  const game = useMemo(() => {
+    const st = newGame({ captureDamage:true, friendlyFire:true, checkShots:true,
+                         shotClock:false, autoFlip:false, assistMode:false, sound:false });
+    const proto = Object.values(st.pieces)[0];
+    st.pieces = {};
+    st.board = new Array(64).fill(null);
+    const types = focus && TYPES.includes(focus) ? [focus] : TYPES;
+    types.forEach((t, i) => {
+      for (const c of ['w','b']) {
+        const id = c + t;
+        const sq = focus ? mkSq(c==='w' ? 3 : 4, 3) : mkSq(i+1, c==='w' ? 2 : 5);
+        st.pieces[id] = { ...proto, id, type:t, color:c, sq, hp:CONFIG.HP[t], maxHp:CONFIG.HP[t], cooldown:0 };
+        st.board[sq] = id;
+      }
+    });
+    st.ply = 40; st.scorch = []; st.fx = []; st.lastMoveSquares = null;
+    return st;
+  }, [focus]);
+  const none = () => {};
+  return (
+    <div style={{position:'fixed', inset:0, background:'var(--bg)'}}>
+      <Canvas camera={{position:[0,3.4,5.0], fov:38, near:0.1, far:120}} dpr={[1,2]} gl={{antialias:true}}>
+        <color attach="background" args={[COL.bg]} />
+        <hemisphereLight args={[LIT.sky, LIT.ground, LIT.hemi]} />
+        <ambientLight intensity={LIT.amb} />
+        <directionalLight position={[6,13,8]} intensity={LIT.dir} />
+        <directionalLight position={[-8,7,-6]} intensity={LIT.fill} color={LIT.fillCol} />
+        <GalleryCamera zoom={zoom} focus={!!focus} />
+        <Board onSquare={none} hints={[]} themeName={theme} selSq={-1} lastMove={null} />
+        {Object.values(game.pieces).map(p => (
+          <PieceMesh key={p.id} p={p} game={game} spin selected={false} hovered={false}
+                     eligible={false} dim={false} aimYaw={null} onPick={none} onHover={none} />))}
+      </Canvas>
+      <div style={{position:'fixed', left:14, top:12, font:'500 12px/1.5 ui-sans-serif, system-ui, sans-serif',
+                   color:'var(--dim)', letterSpacing:'.1em', textTransform:'uppercase', pointerEvents:'none'}}>
+        Piece gallery · {THEMES[theme].label}
+      </div>
+    </div>);
 }
 
 const Scorch = ({ s }) => (
@@ -3132,5 +3389,7 @@ window.CA = {
   damageProfile, gunsLive, kingArmed, fireCheckShots, batteryPartner, fileState, lineState, pawnIsChained,
 };
 
-createRoot(document.getElementById('root')).render(<Boundary><App /></Boundary>);
+const QUERY = new URLSearchParams(location.search);
+createRoot(document.getElementById('root')).render(
+  <Boundary>{QUERY.has('gallery') ? <Gallery themeName={QUERY.get('theme')} zoom={Number(QUERY.get('zoom'))||1} focus={QUERY.get('focus')} /> : <App />}</Boundary>);
 </script>
