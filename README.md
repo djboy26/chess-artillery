@@ -111,6 +111,34 @@ games take about twelve seconds.
 
 > 100 games · 13,637 shots audited · **232,556 piece outcomes compared** · no mismatches
 
+
+### The draws are chess draws too
+
+`chesscheck.cjs` never looked at how a game *ends*, and about half of all bot
+games end in a draw — so that is exactly where a wrong rule would hurt most.
+`drawcheck.cjs` covers it:
+
+```bash
+node drawcheck.cjs               # 100 games, about 7 seconds
+node drawcheck.cjs --games 40 --seed 7
+```
+
+> 100 games · stalemate, checkmate, threefold repetition and the fifty-move rule
+> all reached · no violations
+
+It builds positions by hand to check that two positions count as the same one
+only when the pieces, the side to move, the castling rights *and* the en passant
+square all match; that a shuffle draws on the third sighting of a position and
+not the second; that no moves without check is a draw and never a loss; and that
+the fifty-move counter resets on every pawn move, capture, en passant and
+promotion, does not reset on castling, and draws exactly at the limit rather than
+a ply early. Then it plays random games — half with the guns hot, half with them
+cold — and insists every ending is one of the five the game knows how to reach
+and that the board actually agrees with the reason given.
+
+**It found one.** A checkmate delivered on the hundredth quiet ply was being
+scored as a draw by the fifty-move rule. Chess says a mate is a mate: the board
+position is now settled before either draw counter is consulted.
 ---
 
 ## The turn — there is no "end turn"
