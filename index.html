@@ -1590,45 +1590,45 @@ const THEMES = {
     ui:{ bg:'#efe9dd', board:'#e7dfd0', panel:'#faf7f1', ink:'#2b2620', dim:'#7d7365',
          faint:'#a89c8b', hair:'#e0d7c7', accent:'#c2662f', gold:'#c79418',
          red:'#b3402e', green:'#5e8a4e' },
-    d3:{ wBody:'#fbf6ea', wTrim:'#ffffff', bBody:'#7b5f45', bTrim:'#a1815f',
+    d3:{ wBody:'#e9d9b9', wTrim:'#fff4de', bBody:'#5a3f2a', bTrim:'#8a6a48',
          tileL:'#f0e7d6', tileD:'#c3ab8c', frame:'#e2d6c0', bg:'#efe9dd',
-         metal:'#8d8578', coord:'#9c8a70', rimW:'#6a5c4a', rimB:'#3a2c20' },
+         metal:'#8d8578', coord:'#9c8a70', rimW:'#4a3a29', rimB:'#2a1d13' },
     lit:{ sky:'#fffaf0', ground:'#c8b79c', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#ffe2c0' } },
 
   slate: { label:'Slate',
     ui:{ bg:'#eceef1', board:'#e2e5ea', panel:'#f8f9fb', ink:'#22262c', dim:'#6d747e',
          faint:'#9aa1ab', hair:'#dcdfe5', accent:'#3f7d8c', gold:'#a8801f',
          red:'#a8433c', green:'#4d7c56' },
-    d3:{ wBody:'#fcfdfe', wTrim:'#ffffff', bBody:'#565f6b', bTrim:'#7e8794',
+    d3:{ wBody:'#efe4cf', wTrim:'#fff8ea', bBody:'#3d434c', bTrim:'#6a727e',
          tileL:'#e8ebef', tileD:'#a8b0ba', frame:'#d5d9df', bg:'#eceef1',
-         metal:'#7d848c', coord:'#8b939d', rimW:'#4d545c', rimB:'#22262c' },
+         metal:'#7d848c', coord:'#8b939d', rimW:'#3a4048', rimB:'#15181c' },
     lit:{ sky:'#ffffff', ground:'#b9c0c9', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#d9e6f2' } },
 
   walnut: { label:'Walnut',
     ui:{ bg:'#241c16', board:'#2e241c', panel:'#2b221a', ink:'#f0e6d8', dim:'#a8977f',
          faint:'#7a6a56', hair:'#3d3126', accent:'#d98f3f', gold:'#e0b24a',
          red:'#d05c47', green:'#7faa5e' },
-    d3:{ wBody:'#efdfc4', wTrim:'#fff6e4', bBody:'#4a3122', bTrim:'#7a5537',
+    d3:{ wBody:'#f3e6cc', wTrim:'#fff8e6', bBody:'#2a1d15', bTrim:'#6b4a30',
          tileL:'#c9a878', tileD:'#6b4830', frame:'#2b1d13', bg:'#241c16',
-         metal:'#b8a58c', coord:'#a08a68', rimW:'#3a2818', rimB:'#e9d6b6' },
+         metal:'#b8a58c', coord:'#a08a68', rimW:'#2a1a0e', rimB:'#f4e2c2' },
     lit:{ sky:'#ffe9c8', ground:'#3a2c20', hemi:0.75, amb:0.30, dir:1.55, fill:0.45, fillCol:'#ffca86' } },
 
   sage: { label:'Sage',
     ui:{ bg:'#e9eee6', board:'#dfe6da', panel:'#f6f9f4', ink:'#232a22', dim:'#6b7566',
          faint:'#98a292', hair:'#d8e0d2', accent:'#4f7a4a', gold:'#a8891c',
          red:'#a8483a', green:'#3f7a4e' },
-    d3:{ wBody:'#fbfcf8', wTrim:'#ffffff', bBody:'#4d5c48', bTrim:'#74856d',
+    d3:{ wBody:'#f0e6d1', wTrim:'#fff9ec', bBody:'#33402f', bTrim:'#5f715a',
          tileL:'#e6ede0', tileD:'#a3b39a', frame:'#cdd7c6', bg:'#e9eee6',
-         metal:'#7e8878', coord:'#8b9683', rimW:'#4f5a4c', rimB:'#232a22' },
+         metal:'#7e8878', coord:'#8b9683', rimW:'#3b4438', rimB:'#141a13' },
     lit:{ sky:'#fbfff8', ground:'#bcc7b4', hemi:1.15, amb:0.55, dir:1.0, fill:0.35, fillCol:'#dcf0d4' } },
 
   carbon: { label:'Carbon',
     ui:{ bg:'#15171a', board:'#1d2024', panel:'#1a1d21', ink:'#e6e9ed', dim:'#98a0aa',
          faint:'#6b727b', hair:'#2b2f35', accent:'#e08a3c', gold:'#d9b24a',
          red:'#d95f4c', green:'#6fb07a' },
-    d3:{ wBody:'#e8ebef', wTrim:'#ffffff', bBody:'#3a4048', bTrim:'#5f6874',
+    d3:{ wBody:'#eef1f4', wTrim:'#ffffff', bBody:'#1f2227', bTrim:'#4e5660',
          tileL:'#8f97a1', tileD:'#43494f', frame:'#20242a', bg:'#15171a',
-         metal:'#9aa2ab', coord:'#79818b', rimW:'#2b2f35', rimB:'#c5ccd4' },
+         metal:'#9aa2ab', coord:'#79818b', rimW:'#1c2026', rimB:'#e4e9ef' },
     lit:{ sky:'#dfe8f2', ground:'#22262b', hemi:0.70, amb:0.28, dir:1.65, fill:0.50, fillCol:'#9fc4e8' } },
 };
 const THEME_ORDER = ['ivory','slate','sage','walnut','carbon'];
@@ -1903,7 +1903,7 @@ function PieceCrest({ p, body, trim, rim }) {
     // so the nose points along x (White right, Black left), never at the camera.
     const rot = [0, p.color==='w' ? 0 : Math.PI, 0];
     return (<>
-      <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]} rotation={rot} raycast={noPick} scale={[1.07,1.06,1.16]}>
+      <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]} rotation={rot} raycast={noPick} scale={[1.11,1.09,1.22]}>
         <meshBasicMaterial color={rim} side={THREE.BackSide} /></mesh>
       <mesh geometry={KNIGHT_HEAD} position={[0, h*0.42, 0]} rotation={rot}>{bodyMat}</mesh>
     </>);
@@ -1924,7 +1924,7 @@ function PieceMesh({ p, game, selected, hovered, eligible, dim, aimYaw, onPick, 
       onPointerOver={(e)=>{e.stopPropagation(); onHover(p.id,e);}}
       onPointerOut={(e)=>{e.stopPropagation(); onHover(null,e);}}>
       {/* inverted hull: a slightly larger back-face copy draws a thin rim around the silhouette */}
-      <mesh geometry={GEO.body[p.type]} raycast={noPick} scale={[1.06,1.035,1.06]} position={[0,0.003,0]}>
+      <mesh geometry={GEO.body[p.type]} raycast={noPick} scale={[1.10,1.05,1.10]} position={[0,0.003,0]}>
         <meshBasicMaterial color={rim} side={THREE.BackSide} transparent={dim} opacity={dim?0.30:1} />
       </mesh>
       <mesh geometry={GEO.body[p.type]}>
