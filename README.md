@@ -99,6 +99,18 @@ It asserts, at every position: no offered move leaves your own king in check,
 per-piece and whole-side move generation agree, and you are never in check
 immediately after your own move.
 
+`previewcheck.cjs` guards the other half of the promise: that the aim HUD never
+lies. It plays random games and fires a random shot on nearly every turn. Before
+each shot it writes down exactly what the preview promised — which pieces get
+hit, for how much, and which of them die — then fires and compares that against
+what happened to every piece on the board, splash and friendly fire included. Any
+mismatch prints the game, ply, shooter, target square and the promised-versus-
+actual numbers, and the run exits red. Run it with `node previewcheck.cjs`; it
+takes the same `--games N` and `--seed S` switches as the rules fuzz, and 100
+games take about twelve seconds.
+
+> 100 games · 13,637 shots audited · **232,556 piece outcomes compared** · no mismatches
+
 ---
 
 ## The turn — there is no "end turn"
