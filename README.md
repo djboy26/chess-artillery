@@ -184,7 +184,7 @@ further body in the beam takes 60% of the last. 25 base, cd 2.
 **♘ Knight · Fork Gun.** The only weapon with **free aim** — it lobs, so cover is irrelevant and it can fire anywhere in range. That freedom is why it carries the longest reload. The shell
 **splits and hits the two nearest enemies** within 1.5 squares of impact. ×2 on an
 outpost (opponent's 5th/6th rank), ×0.5 on the a- or h-file; second prong at 50%.
-**Cannot fire inside 2.2 squares** — close it down and its gun is dead. 18 base, cd 4.
+**Cannot fire inside 2.2 squares** — close it down and its gun is dead. 18 base, cd 7.
 
 **♖ Rook · Railgun.** Flat, fast, stopped by the first thing in the way, and
 **fires only along its true rank and file**. Damage is
@@ -239,6 +239,7 @@ node balance.cjs 30 "WEAPONS.p.maxRange=5,HP.k=200"
 | 7 | A bishop one-shot a pawn, knight *or* bishop ⇒ total annihilation, 50% draws | **Double all piece HP** |
 | 8 | Rook was the weakest gun: 6% of shots at 28 dmg | Blocked penalty 0.5→0.75, cd 3→2 |
 | 9 | Bishop: top damage in the game, **0%** survival | Pierce falloff 0.6 per body |
+| 10 | Knight *still* 49% of all shots — the game read as a knight game | cd 4→7 (share → 37%) |
 
 **The counterintuitive one is #7.** Doubling HP made games *shorter* (101 → 55
 plies) and far more decisive (draws 50% → 7.5%), because material now survives to
@@ -249,7 +250,7 @@ and repeat.
 
 | Piece | Share of shots | Dmg/shot | Survival | Role |
 | --- | --- | --- | --- | --- |
-| ♘ Knight | 40% | 17.7 | 59% | The workhorse — cheap, always has a shot |
+| ♘ Knight | 37% | 19.2 | 30% | Still the workhorse, but it reloads slowly now |
 | ♗ Bishop | 32% | 43.9 | 3% | Glass cannon, top damage, dies for it |
 | ♖ Rook | 10% | 28.0 | 14% | Punishes open lines |
 | ♕ Queen | 9% | 57.7 | 25% | Rare, decisive |
@@ -259,9 +260,10 @@ Games average ~55 plies, 7.5% draws, both win conditions live.
 
 ### Still open
 
-- **The knight holds 40% of shots.** It deals the *least* per shot, so it reads as
-  the machine gun rather than the best gun — but it is the most-used piece by a
-  wide margin because it is the only weapon never blocked.
+- **The knight holds 37% of shots**, down from 49% now that its reload is 7 turns.
+  It deals the *least* per shot, so it reads as the machine gun rather than the
+  best gun — and it is still the most-used piece, because it is the only weapon
+  never blocked. The shots it no longer takes went mostly to pawns and bishops.
 - **Bishop survival is 3%.** It is the top damage dealer and gets focused down for
   it. Arguably correct, still extreme.
 - **White wins 62%.** Higher than chess's ~55%; partly first-move advantage
