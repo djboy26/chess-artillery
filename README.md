@@ -342,21 +342,28 @@ drives the HTML chrome, the 3D materials *and* the scene lighting — the warm g
 bounce that flatters Ivory would muddy the dark sets, so every theme carries its own
 light rig.
 
-**Every piece visibly carries the gun it fires**, and the barrel swings to track your
-locked target while aiming:
+**Every piece is a Lego sculpture.** Each rank is its own brick build with studs,
+slopes, round bricks and domes. The white army is white and light grey with gold
+trim; the black army is black and dark grey with red trim. Those colours are fixed
+in every theme, so neither army ever blends into a board, and every piece stands on
+its own base plate. The guns are spring-loaded shooters built into the sculptures:
+while a piece is loaded its ammo sits visibly chambered in the weapon's tracer
+colour, and a reloading piece shows an empty chamber and its turns-to-reload count.
 
-| Piece | What you see |
+| Piece | The build |
 | --- | --- |
-| ♙ Pawn | Twin-barrel chain gun with a magazine, canted to its firing diagonal |
-| ♘ Knight | Stubby mortar tube on a bipod, canted up — it only ever lobs |
-| ♗ Bishop | Long sniper rail with a glowing optic down the diagonal |
-| ♖ Rook | Heavy railgun run through the tower, with bracing struts |
-| ♕ Queen | Howitzer on a turret ring, barrel elevated |
-| ♔ King | Nothing until he arms in the endgame, then a short last-stand piece |
+| ♙ Pawn | Round-brick body under a dome; twin stud shooters on the shoulders; spare studs racked on its back |
+| ♘ Knight | A stepped horse in profile with a slope chest, gold mane and forelock; a brick mortar canted up on its rump, shell showing at the mouth |
+| ♗ Bishop | Tall stem, dome shoulders and a cone mitre; a long sniper rail with a scope and a lit lens clipped to the stem |
+| ♖ Rook | Four-wide plinth, three-wide tower with arrow slits, eight merlons; a banded railgun runs right through the tower |
+| ♕ Queen | Skirt, round waist and bodice, domed head under a five-point crown and pearl; a howitzer rides her shoulder on a turret bracket |
+| ♔ King | Robe, belt and medallion, domed head under a crown and cross; a last-stand stud shooter on his chest once he arms |
 
-Each muzzle glows in that weapon's tracer colour, so you can read the whole board's
-armament at a glance. It is all cosmetic: `CONFIG.HEIGHT` and `PIECE_RADIUS` (the
+The barrels swing to track your locked target while aiming (the knight's mortar
+lobs, so it stays put). It is all cosmetic: `CONFIG.HEIGHT` and `PIECE_RADIUS` (the
 collision model) are untouched, so ballistics and cover are exactly as measured.
+Open `index.html?gallery` (add `&theme=carbon`, or `&focus=n` for a close-up) to see
+all twelve builds turning on a board.
 
 ---
 
