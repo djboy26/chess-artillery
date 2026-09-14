@@ -45,12 +45,15 @@ section 9.** The checks would silently test the wrong thing or stop running.
 - `node chesscheck.cjs` runs the chess-rules fuzz: 120 random games, about
   20 seconds, exit code 1 on any violation. While iterating use the fast
   variant `node chesscheck.cjs --games 15`.
+- `node drawcheck.cjs` checks stalemate, threefold repetition and the fifty-move
+  rule are exactly chess. `node previewcheck.cjs` proves the aim preview matches
+  what every shot actually does. Both exit 1 on any failure and take `--games N`.
 - `node balance-guard.cjs` plays 120 seeded bot games and compares the headline
   balance numbers to `balance-baseline.json`, the numbers the human last
   approved. Exit code 1 on drift. **Only on a task that is explicitly about
   balance**, run `node balance-guard.cjs --rebaseline` and commit the new
   baseline. The human approves the new numbers by merging.
-- `node gate.cjs` runs both and prints one verdict line. **You are not finished
+- `node gate.cjs` runs all four and prints one verdict line. **You are not finished
   until the gate is green.** The Stop hook enforces this locally, and a pull
   request with a red gate cannot be merged.
 - `node balance.cjs 40` prints the readable balance report (measurement only).
